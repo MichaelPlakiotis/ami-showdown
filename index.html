@@ -109,7 +109,7 @@
     <button class="ghost" id="m-music">&#9835; MUSIC: ON</button>
     <button class="ghost" id="m-sound">&#9834; SFX: ON</button>
   </div>
-  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK</div>
+  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK<br><br>NET V2 — BOTH PLAYERS NEED THE SAME VERSION</div>
 </div>
 
 <div class="screen" id="scr-online">
@@ -778,6 +778,7 @@ function setupTouch(){
 
 // ------------------------------------------------ networking (PeerJS, free cloud broker)
 const NET_PREFIX='ami-showdown-wvks-';
+const PROTO=2; // bump when net messages change; mismatched builds refuse to fight
 class Net {
   constructor(){ this.peer=null; this.conn=null; this.isHost=false;
     this.onOpen=null; this.onMsg=null; this.onClose=null; this.onError=null; }
@@ -922,6 +923,12 @@ const Game = {
     }
     else if(d.t==='stage'){ this.stage = STAGES[d.key]?d.key:'restaurant'; this.startFight(); }
     else if(d.t==='rematch'){ this.rematchThem=true; this.tryRematch(); }
+    else if(d.t==='hello'){
+      if(d.v!==PROTO){
+        this.toMenu();
+        alert('GAME VERSIONS DIFFER.\nBOTH PLAYERS: REFRESH THE PAGE AND REJOIN.');
+      }
+    }
   },
   trySelectDone(){
     const mine=this.picks[this.net.isHost?1:2], theirs=this.picks[this.net.isHost?2:1];
@@ -1086,6 +1093,10 @@ function wireUI(){
     Game.net.onMsg=d=>Game.netMsg(d);
     Game.net.onError=netErr;
     Game.net.onClose=netClosed;
+    // fresh session: both sides count rounds from 0 so snapshot round tags line
+    // up (a session-spanning counter is exactly what froze opponents before)
+    Game.round=0;
+    Game.net.onOpen=()=>{ Game.net.send({t:'hello', v:PROTO}); openSelect(); };
   };
 
   $('o-host').onclick=()=>{
@@ -1095,7 +1106,6 @@ function wireUI(){
     $('w-code').textContent=code; $('w-status').textContent='WAITING FOR CHALLENGER...';
     show('scr-wait');
     Game.net=new Net(); bindNet();
-    Game.net.onOpen=()=>{ openSelect(); };
     Game.net.host(code);
   };
   $('o-join').onclick=()=>{
@@ -1105,7 +1115,6 @@ function wireUI(){
     Game.mode='online'; Game.picks={};
     $('o-status').textContent='CONNECTING...';
     Game.net=new Net(); bindNet();
-    Game.net.onOpen=()=>{ openSelect(); };
     Game.net.join(code);
   };
 }
