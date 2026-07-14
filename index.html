@@ -195,6 +195,18 @@ const CHARACTERS = {
       hair:'#3a2c1e', hairHi:'#4a3826', glass:'#0b0b10', lens:'#bfe0ec',
       hat:'#f4f6f9', hatLo:'#d5dae2' }
   },
+  stavros: {
+    // hand-tuned from characters/stavros.png: black tee + the burgundy Ami apron
+    name:'STAVROS', glasses:true, headgear:'none', bowtie:false,
+    bald:true, shortSleeves:true, beard:'#b3854e', apron:'#6e2437',
+    pal:{ out:'#0a0b0f',
+      skin:'#ecc3a0', skinHi:'#f7d6b8', skinLo:'#d0a077',
+      torso:'#17171d', torsoHi:'#26262e', hoodIn:'#101014',
+      arm:'#17171d', armHi:'#26262e', armLo:'#101014',
+      pant:'#131318', pantHi:'#1e1e26',
+      shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
+      hair:'#8a6a44', hairHi:'#a98552', glass:'#0b0b10', lens:'#cfe0ec' }
+  },
 };
 
 // ------------------------------------------------ roster: built-ins + photo characters
@@ -252,6 +264,7 @@ async function loadPhotoCharacters(){
     const list=await res.json();
     for(const f of list){
       if(f.type!=='file' || !/\.(png|jpe?g|gif|webp)$/i.test(f.name)) continue;
+      if(CHARACTERS[f.name.replace(/\.[^.]+$/,'').toLowerCase()]) continue; // hand-tuned built-in wins over auto-sample
       try{
         const img=new Image(); img.crossOrigin='anonymous';
         await new Promise((ok,fail)=>{
@@ -293,8 +306,8 @@ function drawCharacter(p, ch){
   const shX=hipX + p.lean*0.35;
   const headX=shX+1 + p.lean*0.15, headY=shY-11 + p.head*0.3;
 
-  // BACK arm
-  const ba=limb(shX-2, shY+2, p.baUp, 8, p.baLo, 8, 5,4, c.armLo, c.armLo, c.out);
+  // BACK arm (short sleeves: bare forearm)
+  const ba=limb(shX-2, shY+2, p.baUp, 8, p.baLo, 8, 5,4, c.armLo, ch.shortSleeves?c.skinLo:c.armLo, c.out);
   blk(ba.hx,ba.hy,5,c.out); blk(ba.hx,ba.hy,4,c.skinLo);
   // BACK leg
   const bl=limb(hipX-2, hipY, p.blUp, 10, p.blLo, 9, 6,5, c.pant, c.pant, c.out);
@@ -304,13 +317,25 @@ function drawCharacter(p, ch){
   line(hipX,hipY, shX,shY, 15, c.torso);
   line(hipX+4,hipY-1, shX+4,shY, 3, c.torsoHi);
   line(hipX+1,hipY-3, shX+1,shY+2, 1, c.hoodIn);
+  if(ch.apron){ // bib over the shirt + "Ami" emblem
+    line(hipX,hipY, shX,shY, 11, ch.apron);
+    line(hipX+4,hipY-1, shX+4,shY-1, 1, shade(ch.apron,1.35));
+    const mx=(hipX+shX)/2, my=(hipY+shY)/2;
+    rect(mx-2,my-3,4,1,'#cfe6ee'); rect(mx-1,my-2,2,1,'#9fc4d4');
+  }
   rect(shX-6, shY-4, 13, 3, c.out);
   rect(shX-5, shY-4, 11, 4, c.torso);
   rect(shX-3, shY-2, 8, 3, c.hoodIn);
+  if(ch.apron){ rect(shX-4, shY-4, 2, 3, ch.apron); rect(shX+2, shY-4, 2, 3, ch.apron); } // neck straps
   if(ch.bowtie){ rect(shX-1, shY-2, 4, 2, c.bowtie); blk(shX+1, shY-1, 1, c.out); }
   // FRONT leg
   const fl=limb(hipX+2, hipY, p.flUp, 10, p.flLo, 9, 6,5, c.pantHi, c.pant, c.out);
   drawShoe(fl.hx, fl.hy, c);
+  if(ch.apron){ // skirt over the thighs
+    rect(hipX-9, hipY-2, 18, 11, c.out);
+    rect(hipX-8, hipY-1, 16, 9, ch.apron);
+    rect(hipX-8, hipY+6, 16, 2, shade(ch.apron,0.72));
+  }
   // HEAD
   rect(headX-6, headY-3, 13, 15, c.out);
   rect(headX-4, headY+9, 4, 3, c.skinLo);
@@ -319,9 +344,15 @@ function drawCharacter(p, ch){
   rect(headX+5, headY+1, 1, 9, c.skinHi);
   rect(headX-5, headY+4, 1, 3, c.skinLo);
   // hair
-  rect(headX-5, headY-3, 11, 4, c.hair);
-  rect(headX-5, headY+1, 2, 3, c.hair);
-  rect(headX-4, headY-2, 8, 1, c.hairHi);
+  if(ch.bald){ // buzzed sides, receding crown
+    rect(headX-5, headY-3, 4, 4, c.hair);
+    rect(headX-5, headY+1, 2, 3, c.hair);
+    rect(headX-1, headY-3, 6, 1, c.hairHi);
+  } else {
+    rect(headX-5, headY-3, 11, 4, c.hair);
+    rect(headX-5, headY+1, 2, 3, c.hair);
+    rect(headX-4, headY-2, 8, 1, c.hairHi);
+  }
   if(ch.headgear==='toque'){
     rect(headX-5, headY-11, 11, 9, c.out);
     rect(headX-4, headY-10, 9, 8, c.hat);
@@ -339,8 +370,12 @@ function drawCharacter(p, ch){
     rect(headX+2, headY+4, 2, 2, c.glass);
   }
   rect(headX+3, headY+8, 2, 1, c.skinLo);
-  // FRONT arm
-  const fa=limb(shX+2, shY+2, p.faUp, 8, p.faLo, 8, 5,4, c.arm, c.armHi, c.out);
+  if(ch.beard){
+    rect(headX, headY+7, 6, 4, ch.beard);
+    rect(headX+3, headY+8, 2, 1, shade(ch.beard,0.7));
+  }
+  // FRONT arm (short sleeves: bare forearm)
+  const fa=limb(shX+2, shY+2, p.faUp, 8, p.faLo, 8, 5,4, c.arm, ch.shortSleeves?c.skin:c.armHi, c.out);
   blk(fa.hx,fa.hy,6,c.out); blk(fa.hx,fa.hy,5,c.skin); blk(fa.hx-1,fa.hy-1,2,c.skinHi);
 }
 
