@@ -183,27 +183,17 @@ const AIR_MOVES = { apunch:true, akick:true };
 // ------------------------------------------------ characters = palettes + flags
 // Adding a friend = one new entry here (see PLAN.md / characters folder).
 const CHARACTERS = {
-  waiter: {
-    name:'WAITER', glasses:true, headgear:'none', bowtie:true,
-    pal:{ out:'#0a0b0f',
-      skin:'#e7b088', skinHi:'#f3c69e', skinLo:'#c98f66',
-      torso:'#1b1c26', torsoHi:'#2a2c3a', hoodIn:'#e8e8ee',
-      arm:'#1b1c26', armHi:'#2a2c3a', armLo:'#14151d',
-      pant:'#14151d', pantHi:'#20222c',
-      shoe:'#101018', sole:'#e2e4ea', shoeAcc:'#8b909e',
-      hair:'#1f1a15', hairHi:'#2c261f', glass:'#0b0b10', lens:'#bfe0ec',
-      bowtie:'#7a1f2b' }
-  },
-  kitchen: {
-    name:'KITCHEN STAFF', glasses:false, headgear:'toque', bowtie:false,
+  trifonas: {
+    // was "Kitchen Staff": kitchen whites, bald under a red baseball cap
+    name:'TRIFONAS', glasses:false, headgear:'cap', bowtie:false, bald:true,
     pal:{ out:'#0a0b0f',
       skin:'#cf9a70', skinHi:'#e0ad84', skinLo:'#b57d55',
       torso:'#e6e9ee', torsoHi:'#f7f9fc', hoodIn:'#c3c9d4',
       arm:'#dfe3ea', armHi:'#f2f5f9', armLo:'#c8cdd8',
       pant:'#3a3f4d', pantHi:'#4a5062',
       shoe:'#282b35', sole:'#e2e4ea', shoeAcc:'#8b909e',
-      hair:'#3a2c1e', hairHi:'#4a3826', glass:'#0b0b10', lens:'#bfe0ec',
-      hat:'#f4f6f9', hatLo:'#d5dae2' }
+      hair:'#c29067', hairHi:'#cf9a70', glass:'#0b0b10', lens:'#bfe0ec', // hair = skin tones: bald
+      hat:'#a8302e', hatLo:'#7c201f' }
   },
   stavros: {
     // hand-tuned from characters/stavros.png: black tee + the burgundy Ami apron
@@ -366,6 +356,14 @@ function drawCharacter(p, ch){
     rect(headX-4, headY-10, 9, 8, c.hat);
     rect(headX-4, headY-3, 9, 1, c.hatLo);
     rect(headX-4, headY-10, 2, 7, c.hatLo);
+  }
+  if(ch.headgear==='cap'){ // baseball cap, brim forward
+    rect(headX-6, headY-7, 13, 5, c.out);
+    rect(headX-5, headY-6, 11, 4, c.hat);
+    rect(headX-5, headY-3, 11, 1, c.hatLo);
+    rect(headX+4, headY-4, 7, 3, c.out);
+    rect(headX+4, headY-3, 6, 2, c.hat);
+    blk(headX-1, headY-5, 1, c.hatLo);
   }
   // face
   if(ch.glasses){
@@ -650,7 +648,7 @@ const Music = {
 // ------------------------------------------------ fighter logic
 class Fighter {
   constructor(charKey, x, facing){
-    this.charKey=charKey; this.ch=ROSTER[charKey]||CHARACTERS.waiter;
+    this.charKey=charKey; this.ch=ROSTER[charKey]||CHARACTERS.trifonas;
     this.x=x; this.y=GROUND; this.vx=0; this.vy=0;
     this.facing=facing; this.grounded=true;
     this.hp=MAX_HP; this.state='idle'; this.stateTimer=0;
@@ -892,8 +890,8 @@ const Game = {
 
   startFight(){
     hideAll();
-    this.p1=new Fighter(this.picks[1]||'waiter', 130, 1);
-    this.p2=new Fighter(this.picks[2]||'kitchen', VW-130, -1);
+    this.p1=new Fighter(this.picks[1]||'trifonas', 130, 1);
+    this.p2=new Fighter(this.picks[2]||'stavros', VW-130, -1);
     if(this.mode==='online'){
       this.my = this.net.isHost ? this.p1 : this.p2;
       this.remote = this.net.isHost ? this.p2 : this.p1;
@@ -1000,8 +998,9 @@ const Game = {
     if(!inFight){
       // attract mode: two idle fighters behind the menus
       G.ctx=ctx; G.S=S;
-      for(const [key,x,f] of [['waiter',130,1],['kitchen',VW-130,-1]]){
-        ctx.save(); ctx.translate(x,GROUND); ctx.scale(f,1); ctx.translate(-27*S,-60*S);
+      for(const [key,x,f] of [['trifonas',130,1],['stavros',VW-130,-1]]){
+        const ch=CHARACTERS[key];
+        ctx.save(); ctx.translate(x,GROUND); ctx.scale(f*(ch.sx||1),ch.sy||1); ctx.translate(-27*S,-60*S);
         drawCharacter(idlePose(now+(f===1?0:400)), CHARACTERS[key]); ctx.restore();
       }
       return;
