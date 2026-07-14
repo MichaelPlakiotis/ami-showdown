@@ -134,6 +134,12 @@
   <div class="hint" id="s-status"></div>
 </div>
 
+<div class="screen" id="scr-stage">
+  <h1 style="font-size:14px;">CHOOSE THE STAGE</h1>
+  <div class="sub" id="st-who"></div>
+  <div class="row" id="st-cards"></div>
+</div>
+
 <div class="screen" id="scr-result" style="background:transparent; pointer-events:none;">
   <div style="flex:1"></div>
   <div class="row" style="pointer-events:auto; margin-bottom:16px;">
@@ -190,6 +196,75 @@ const CHARACTERS = {
       hat:'#f4f6f9', hatLo:'#d5dae2' }
   },
 };
+
+// ------------------------------------------------ roster: built-ins + photo characters
+// Drop a photo in characters/ and push: the fighter is named after the file
+// and its palette is sampled from the picture at load time.
+const ROSTER = Object.assign({}, CHARACTERS);
+
+function shade(hex, f){
+  const n=parseInt(hex.slice(1),16);
+  const c=[n>>16&255, n>>8&255, n&255].map(v=>Math.max(0,Math.min(255,Math.round(v*f))));
+  return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function rgbHex(c){ return '#'+c.map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join(''); }
+
+function extractPhotoColors(img){
+  const c=document.createElement('canvas'); c.width=c.height=48;
+  const x=c.getContext('2d');
+  const s=Math.min(img.width,img.height);
+  x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,48,48);
+  const d=x.getImageData(0,0,48,48).data;
+  const skin=[],hair=[],top=[];
+  for(let y=0;y<48;y++) for(let xx=0;xx<48;xx++){
+    const i=(y*48+xx)*4, r=d[i],g=d[i+1],b=d[i+2];
+    const lum=0.299*r+0.587*g+0.114*b;
+    if(y<34 && r>95&&g>40&&b>20&&r>g&&g>b&&(r-b)>15) skin.push([r,g,b]);
+    if(y<14 && lum<110) hair.push([r,g,b]);
+    if(y>=34) top.push([r,g,b]);
+  }
+  const avg=a=>a.length>20 ? a.reduce((t,p)=>[t[0]+p[0],t[1]+p[1],t[2]+p[2]],[0,0,0]).map(v=>Math.round(v/a.length)) : null;
+  return { skin:avg(skin), hair:avg(hair), top:avg(top) };
+}
+function makeChar(name, colors, opts){
+  const skin=colors.skin?rgbHex(colors.skin):'#e7b088';
+  const hair=colors.hair?rgbHex(colors.hair):'#1f1a15';
+  const top =colors.top ?rgbHex(colors.top) :'#365a8c';
+  return Object.assign({ name, glasses:false, headgear:'none', bowtie:false,
+    pal:{ out:'#0a0b0f',
+      skin, skinHi:shade(skin,1.15), skinLo:shade(skin,0.78),
+      torso:top, torsoHi:shade(top,1.25), hoodIn:shade(top,0.55),
+      arm:top, armHi:shade(top,1.2), armLo:shade(top,0.7),
+      pant:shade(top,0.45), pantHi:shade(top,0.6),
+      shoe:'#282b35', sole:'#e2e4ea', shoeAcc:'#8b909e',
+      hair, hairHi:shade(hair,1.3), glass:'#0b0b10', lens:'#bfe0ec' } }, opts||{});
+}
+
+function repoPath(){
+  const h=location.hostname, seg=location.pathname.split('/').filter(Boolean);
+  if(h.endsWith('.github.io')&&seg.length) return h.split('.')[0]+'/'+seg[0];
+  return 'MichaelPlakiotis/ami-showdown';
+}
+async function loadPhotoCharacters(){
+  try{
+    const res=await fetch('https://api.github.com/repos/'+repoPath()+'/contents/characters');
+    if(!res.ok) return;
+    const list=await res.json();
+    for(const f of list){
+      if(f.type!=='file' || !/\.(png|jpe?g|gif|webp)$/i.test(f.name)) continue;
+      try{
+        const img=new Image(); img.crossOrigin='anonymous';
+        await new Promise((ok,fail)=>{
+          img.onload=ok;
+          img.onerror=()=>{ img.onerror=fail; img.src=f.download_url; }; // CDN fallback
+          img.src='characters/'+encodeURIComponent(f.name);              // same-origin first
+        });
+        const name=f.name.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ').toUpperCase();
+        ROSTER['img:'+f.name]=makeChar(name, extractPhotoColors(img));
+      }catch(e){}
+    }
+  }catch(e){}
+}
 
 // ------------------------------------------------ pixel drawing (from design)
 const G = { ctx:null, S:1 };
@@ -315,6 +390,82 @@ function jumpPose(){ return { lean:4, bob:0, head:0, baUp:55, baLo:150, faUp:55,
 function hitstunPose(){ return { lean:-16, bob:1, head:-4, baUp:-15, baLo:-50, faUp:-25, faLo:-60, blUp:-20, blLo:-10, flUp:22, flLo:14 }; }
 function koPose(){ return { lean:-10, bob:0, head:-6, baUp:-60, baLo:-90, faUp:120, faLo:150, blUp:-20, blLo:-10, flUp:30, flLo:20 }; }
 
+// ------------------------------------------------ stages (same 8-bit renderer, mini NPCs)
+const DINERS=[ makeChar('',{skin:[231,176,136],hair:[44,31,22],top:[122,59,70]}),
+               makeChar('',{skin:[207,154,112],hair:[26,20,16],top:[59,94,70]}),
+               makeChar('',{skin:[240,192,154],hair:[58,44,30],top:[74,90,140]}),
+               makeChar('',{skin:[181,125,85],hair:[21,18,16],top:[140,122,59]}) ];
+const COOKS=[ makeChar('',{skin:[231,176,136],hair:[44,31,22],top:[230,233,238]},{headgear:'toque'}),
+              makeChar('',{skin:[181,125,85],hair:[21,18,16],top:[223,227,234]},{headgear:'toque'}) ];
+
+function eatPose(now,seed){
+  const B=basePose();
+  const a=Math.max(0,Math.sin(now/700+seed*9));   // hand to mouth / stir cycle
+  B.faUp=38+a*60; B.faLo=130-a*100;
+  B.bob=Math.sin(now/820+seed*7); B.head=a*2;
+  return B;
+}
+function drawMini(ctx,x,y,pose,ch,face){
+  ctx.save(); ctx.translate(x,y); ctx.scale(face||1,1); ctx.translate(-27,-60);
+  G.ctx=ctx; G.S=1; drawCharacter(pose,ch); ctx.restore();
+}
+
+const STAGES={
+  restaurant:{ name:'AMI RESTAURANT', draw(ctx,now){
+    ctx.fillStyle='#4a3a30'; ctx.fillRect(0,0,VW,GROUND);
+    ctx.fillStyle='#3c2f27'; ctx.fillRect(0,0,VW,60);
+    ctx.fillStyle='#5a4636'; ctx.fillRect(0,60,VW,4);
+    for(const wx of [40, VW-130]){                                  // night windows
+      ctx.fillStyle='#20303c'; ctx.fillRect(wx,76,90,54);
+      ctx.fillStyle='#e9f4f7'; ctx.fillRect(wx+14,88,2,2); ctx.fillRect(wx+60,96,2,2); ctx.fillRect(wx+38,84,2,2);
+      ctx.fillStyle='#2f4757'; ctx.fillRect(wx+43,76,4,54); ctx.fillRect(wx,100,90,4);
+      ctx.fillStyle='#5a4636'; ctx.fillRect(wx-4,72,98,4); ctx.fillRect(wx-4,130,98,4);
+    }
+    const by=GROUND-34;                                             // diners behind tables
+    const seats=[[VW/2-88,0],[VW/2-40,1],[VW/2+44,2],[VW/2+92,3]];
+    for(const [sx,i] of seats) drawMini(ctx,sx,by,eatPose(now,i),DINERS[i%DINERS.length], sx<VW/2?1:-1);
+    for(const tx of [VW/2-64, VW/2+68]){
+      ctx.fillStyle='#0a0b0f'; ctx.fillRect(tx-31,by-27,62,22);
+      ctx.fillStyle='#6b543f'; ctx.fillRect(tx-29,by-25,58,6);
+      ctx.fillStyle='#553f2e'; ctx.fillRect(tx-29,by-19,58,12);
+      ctx.fillStyle='#e2e4ea'; ctx.fillRect(tx-18,by-28,12,3); ctx.fillRect(tx+8,by-28,12,3);
+      ctx.fillStyle='#f2c14e'; ctx.fillRect(tx-15,by-30,6,2); ctx.fillRect(tx+11,by-30,6,2); // food
+    }
+    ctx.fillStyle='#2f2620'; ctx.fillRect(0,GROUND-2,VW,2);
+    ctx.fillStyle='#5d4a38'; ctx.fillRect(0,GROUND,VW,VH-GROUND);
+    ctx.fillStyle='#503f30'; for(let fx=0;fx<VW;fx+=40) ctx.fillRect(fx,GROUND,2,VH-GROUND);
+  }},
+  kitchen:{ name:'THE KITCHEN', draw(ctx,now){
+    ctx.fillStyle='#8fa6ad'; ctx.fillRect(0,0,VW,GROUND);            // tiled wall
+    ctx.fillStyle='#7d949b';
+    for(let ty=0;ty<GROUND;ty+=22) for(let tx=(ty/22%2)*20;tx<VW;tx+=40) ctx.fillRect(tx,ty,38,20);
+    ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(0,0,VW,60);
+    for(const hx of [70,110,VW-100,VW-60]){                          // hanging pans
+      ctx.fillStyle='#26333d'; ctx.fillRect(hx,24,2,16);
+      ctx.fillStyle='#4a5560'; ctx.fillRect(hx-7,40,16,10);
+    }
+    const cy=GROUND-30;
+    drawMini(ctx,90,cy,eatPose(now,1),COOKS[0],1);                   // stirring cooks
+    drawMini(ctx,VW-90,cy,eatPose(now,3),COOKS[1],-1);
+    ctx.fillStyle='#0a0b0f'; ctx.fillRect(30,cy-26,140,28); ctx.fillRect(VW-170,cy-26,140,28);
+    ctx.fillStyle='#aeb9c2'; ctx.fillRect(32,cy-24,136,8); ctx.fillRect(VW-168,cy-24,136,8);
+    ctx.fillStyle='#6d7a85'; ctx.fillRect(32,cy-16,136,16); ctx.fillRect(VW-168,cy-16,136,16);
+    for(const px2 of [60,120,VW-140,VW-80]){                         // pots + steam
+      ctx.fillStyle='#26333d'; ctx.fillRect(px2-12,cy-34,24,10);
+      ctx.fillStyle='#39434d'; ctx.fillRect(px2-12,cy-34,24,3);
+      for(let k=0;k<3;k++){
+        const t=((now/1400)+k*0.33+px2*0.01)%1;
+        ctx.fillStyle='rgba(255,255,255,'+(0.35*(1-t)).toFixed(2)+')';
+        ctx.fillRect(px2-6+Math.sin(t*6+k*2+px2)*5, cy-38-t*26, 3,3);
+      }
+    }
+    ctx.fillStyle='#3c454d'; ctx.fillRect(0,GROUND-2,VW,2);
+    ctx.fillStyle='#5a6670'; ctx.fillRect(0,GROUND,VW,VH-GROUND);
+    ctx.fillStyle='#4c565f';
+    for(let fy=GROUND;fy<VH;fy+=12) for(let fx=((fy-GROUND)/12%2)*12;fx<VW;fx+=24) ctx.fillRect(fx,fy,10,10);
+  }}
+};
+
 // ------------------------------------------------ chiptune SFX (from design)
 const Sound = {
   on:true, _ac:null,
@@ -350,7 +501,7 @@ const Sound = {
 // ------------------------------------------------ fighter logic
 class Fighter {
   constructor(charKey, x, facing){
-    this.charKey=charKey; this.ch=CHARACTERS[charKey];
+    this.charKey=charKey; this.ch=ROSTER[charKey]||CHARACTERS.waiter;
     this.x=x; this.y=GROUND; this.vx=0; this.vy=0;
     this.facing=facing; this.grounded=true;
     this.hp=MAX_HP; this.state='idle'; this.stateTimer=0;
@@ -540,7 +691,7 @@ class Net {
 
 // ------------------------------------------------ game orchestration
 const $=id=>document.getElementById(id);
-const screens=['scr-menu','scr-online','scr-wait','scr-select','scr-result'];
+const screens=['scr-menu','scr-online','scr-wait','scr-select','scr-stage','scr-result'];
 function show(id){ for(const s of screens) $(s).classList.toggle('on', s===id); }
 function hideAll(){ for(const s of screens) $(s).classList.remove('on'); }
 
@@ -550,15 +701,15 @@ const Game = {
   net:null, netFrame:0,
   p1:null, p2:null,       // p1 = left, p2 = right. Online: myFighter references one of them.
   my:null, remote:null,
-  picks:{}, pickTurn:1,
+  picks:{}, pickTurn:1, stage:'restaurant', round:0,
   timer:ROUND_TIME, over:false, winner:null, banner:'', bannerT:0,
-  shake:0, sparks:[], rematchMe:false, rematchThem:false,
+  shake:0, sparks:[], rematchMe:false, rematchThem:false, _snap:null,
 
   onHit(attacker, victim, mv){
     // online: only my own attacks are authoritative; victim applies damage on its side
     if(this.mode==='online'){
       if(attacker!==this.my) return;
-      this.net.send({t:'hit', mv:attacker.state, facing:attacker.facing});
+      this.net.send({t:'hit', r:this.round, mv:attacker.state, facing:attacker.facing});
     }
     victim.receiveHit(mv, attacker.facing, this);
     this.spark((attacker.x+victim.x)/2, victim.y-40*S/2);
@@ -583,6 +734,11 @@ const Game = {
       this.my = this.net.isHost ? this.p1 : this.p2;
       this.remote = this.net.isHost ? this.p2 : this.p1;
     }
+    // new round: bump the round counter and drop any snapshot from the previous
+    // round, otherwise a stale KO state instantly ends the rematch on one side
+    this.round++; this._snap=null;
+    this.rematchMe=this.rematchThem=false;
+    $('r-rematch').textContent='REMATCH';
     this.timer=ROUND_TIME; this.over=false; this.winner=null;
     this.banner='FIGHT!'; this.bannerT=0; this.sparks.length=0;
     this.phase='fight';
@@ -622,13 +778,12 @@ const Game = {
         this.remote.y+= (s.y-this.remote.y)*0.5;
         this.remote.facing=s.f; this.remote.hp=s.hp;
         if(this.remote.state!=='ko'){ this.remote.state=s.st; this.remote.stateTimer=s.t; }
-        if(s.st==='ko'&&this.remote.state!=='ko'){ this.remote.state='ko'; }
         if(s.hp<=0&&!this.over){ this.remote.state='ko'; this.onKO(this.remote); }
       }
-      // stream my state ~30/s
+      // stream my state ~30/s, tagged with the round it belongs to
       if(++this.netFrame%2===0){
         const m=this.my;
-        this.net.send({t:'s', x:m.x, y:m.y, f:m.facing, st:m.state, t2:m.stateTimer, hp:m.hp});
+        this.net.send({t:'s', r:this.round, x:m.x, y:m.y, f:m.facing, st:m.state, t2:m.stateTimer, hp:m.hp});
       }
       if(this.my.hp<=0&&!this.over) this.onKO(this.my);
     }
@@ -640,18 +795,26 @@ const Game = {
   },
 
   netMsg(d){
-    if(d.t==='s'){ this._snap={x:d.x,y:d.y,f:d.f,st:d.st,t:d.t2,hp:d.hp}; }
+    if(d.t==='s'){ if(d.r===this.round) this._snap={x:d.x,y:d.y,f:d.f,st:d.st,t:d.t2,hp:d.hp}; }
     else if(d.t==='hit'){
+      if(d.r!==this.round) return;
       const mv=MOVES[d.mv]; if(mv) { this.my.receiveHit(mv, d.facing, this);
         this.spark(this.my.x, this.my.y-40); this.shake=0.12; }
     }
-    else if(d.t==='char'){ this.picks[this.net.isHost?2:1]=d.key; this.trySelectDone(); }
+    else if(d.t==='char'){
+      // opponent may pick a photo character we failed to load: take their definition
+      if(!ROSTER[d.key] && d.def && d.def.pal) ROSTER[d.key]=d.def;
+      this.picks[this.net.isHost?2:1]=d.key; this.trySelectDone();
+    }
+    else if(d.t==='stage'){ this.stage = STAGES[d.key]?d.key:'restaurant'; this.startFight(); }
     else if(d.t==='rematch'){ this.rematchThem=true; this.tryRematch(); }
-    else if(d.t==='start'){ /* reserved */ }
   },
   trySelectDone(){
     const mine=this.picks[this.net.isHost?1:2], theirs=this.picks[this.net.isHost?2:1];
-    if(mine&&theirs) this.startFight();
+    if(mine&&theirs){
+      if(this.net.isHost) openStageSelect();
+      else $('s-status').textContent='HOST IS PICKING THE STAGE...';
+    }
     else $('s-status').textContent = mine?'WAITING FOR OPPONENT...':'';
   },
   tryRematch(){
@@ -661,16 +824,10 @@ const Game = {
   },
 
   draw(ctx, now){
-    // stage backdrop (design palette)
-    ctx.fillStyle='#4a6c80'; ctx.fillRect(0,0,VW,VH);
-    ctx.fillStyle='rgba(255,255,255,.05)'; ctx.fillRect(0,0,VW,80);
-    ctx.fillStyle='#2f4757'; ctx.fillRect(0,GROUND-2,VW,2);
-    ctx.fillStyle='#3b5768'; ctx.fillRect(0,GROUND,VW,VH-GROUND);
-    // back-wall props: pass window + shelves (restaurant vibe)
-    ctx.fillStyle='#3d5a6c'; ctx.fillRect(60,70,90,60); ctx.fillRect(VW-150,70,90,60);
-    ctx.fillStyle='#2f4757'; ctx.fillRect(60,96,90,4); ctx.fillRect(VW-150,96,90,4);
+    const inFight = this.phase==='fight'||this.phase==='over';
+    STAGES[inFight?this.stage:'restaurant'].draw(ctx, now);
 
-    if(this.phase!=='fight'&&this.phase!=='over'){
+    if(!inFight){
       // attract mode: two idle fighters behind the menus
       G.ctx=ctx; G.S=S;
       for(const [key,x,f] of [['waiter',130,1],['kitchen',VW-130,-1]]){
@@ -727,8 +884,8 @@ function openSelect(){
   Game.picks = Game.mode==='local' ? {} : Game.picks;
   Game.pickTurn=1;
   $('s-who').textContent = Game.mode==='local' ? 'PLAYER 1 — PICK' : 'PICK YOUR FIGHTER';
-  for(const key of Object.keys(CHARACTERS)){
-    const ch=CHARACTERS[key];
+  for(const key of Object.keys(ROSTER)){
+    const ch=ROSTER[key];
     const card=document.createElement('div'); card.className='charcard';
     const cv=document.createElement('canvas'); cv.width=58*2; cv.height=66*2;
     const label=document.createElement('span'); label.textContent=ch.name;
@@ -740,16 +897,39 @@ function openSelect(){
       if(Game.mode==='local'){
         Game.picks[Game.pickTurn]=key;
         if(Game.pickTurn===1){ Game.pickTurn=2; $('s-who').textContent='PLAYER 2 — PICK'; }
-        else Game.startFight();
+        else openStageSelect();
       } else {
         const slot=Game.net.isHost?1:2;
         Game.picks[slot]=key;
-        Game.net.send({t:'char', key});
+        Game.net.send({t:'char', key, def:ROSTER[key]});
         $('s-who').textContent='LOCKED: '+ch.name;
         Game.trySelectDone();
       }
     };
     $('s-cards').append(card);
+  }
+}
+
+// ------------------------------------------------ stage select UI
+function openStageSelect(){
+  show('scr-stage');
+  $('st-who').textContent = Game.mode==='local' ? 'PLAYER 1 — PICK' : 'YOU HOST — PICK';
+  $('st-cards').innerHTML='';
+  for(const key of Object.keys(STAGES)){
+    const st=STAGES[key];
+    const card=document.createElement('div'); card.className='charcard';
+    const cv=document.createElement('canvas'); cv.width=160; cv.height=90;
+    const label=document.createElement('span'); label.textContent=st.name;
+    card.append(cv,label);
+    const pctx=cv.getContext('2d'); pctx.imageSmoothingEnabled=false;
+    pctx.save(); pctx.scale(160/VW,90/VH); st.draw(pctx,0); pctx.restore();
+    card.onclick=()=>{
+      Sound.sfx('ui');
+      Game.stage=key;
+      if(Game.mode==='online') Game.net.send({t:'stage', key});
+      Game.startFight();
+    };
+    $('st-cards').append(card);
   }
 }
 
@@ -823,6 +1003,7 @@ addEventListener('resize', fit);
 const ctx=$('game').getContext('2d');
 ctx.imageSmoothingEnabled=false;
 Input.init(); setupTouch(); wireUI(); fit();
+loadPhotoCharacters();
 
 let last=performance.now(), acc=0; const STEP=1/60;
 function frame(now){
