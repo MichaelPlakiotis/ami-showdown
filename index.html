@@ -233,6 +233,19 @@ const CHARACTERS = {
       shoe:'#4a4d55', sole:'#c9ccd3', shoeAcc:'#7d8089',
       hair:'#241d16', hairHi:'#332a20', glass:'#0b0b10', lens:'#cfe0ec' }
   },
+  ntinos: {
+    // bald + goatee, skinny build, white shirt, red apron, black jeans
+    name:'NTINOS', glasses:false, headgear:'none', bowtie:false,
+    bald:true, goatee:'#2a2119', apron:'#a8302e',
+    sx:0.85, sy:1.02,
+    pal:{ out:'#0a0b0f',
+      skin:'#e3b48d', skinHi:'#f0c8a4', skinLo:'#c69468',
+      torso:'#e9e7e0', torsoHi:'#f7f5ef', hoodIn:'#cfccc2',
+      arm:'#e9e7e0', armHi:'#f4f2ec', armLo:'#d5d2c8',
+      pant:'#17171d', pantHi:'#23232b',
+      shoe:'#1a1a20', sole:'#8b909e', shoeAcc:'#3a3d45',
+      hair:'#c69468', hairHi:'#d5a377', glass:'#0b0b10', lens:'#bfe0ec' } // hair = skin tones: bald
+  },
 };
 
 // ------------------------------------------------ roster: built-ins + photo characters
@@ -379,6 +392,10 @@ function drawCharacter(p, ch){
   if(ch.beard){
     rect(headX, headY+7, 6, 4, ch.beard);
     rect(headX+3, headY+8, 2, 1, shade(ch.beard,0.7));
+  }
+  if(ch.goatee){ // mustache + chin patch only
+    rect(headX+3, headY+7, 3, 1, ch.goatee);
+    rect(headX+2, headY+9, 4, 2, ch.goatee);
   }
   // FRONT arm (short sleeves: bare forearm)
   const fa=limb(shX+2, shY+2, p.faUp, 8, p.faLo, 8, 5,4, c.arm, ch.shortSleeves?c.skin:c.armHi, c.out);
