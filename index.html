@@ -199,6 +199,7 @@ const CHARACTERS = {
     // hand-tuned from characters/stavros.png: black tee + the burgundy Ami apron
     name:'STAVROS', glasses:true, headgear:'none', bowtie:false,
     bald:true, shortSleeves:true, beard:'#b3854e', apron:'#6e2437',
+    sx:0.88, sy:1.08,
     pal:{ out:'#0a0b0f',
       skin:'#ecc3a0', skinHi:'#f7d6b8', skinLo:'#d0a077',
       torso:'#17171d', torsoHi:'#26262e', hoodIn:'#101014',
@@ -206,6 +207,19 @@ const CHARACTERS = {
       pant:'#131318', pantHi:'#1e1e26',
       shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
       hair:'#8a6a44', hairHi:'#a98552', glass:'#0b0b10', lens:'#cfe0ec' }
+  },
+  christi: {
+    // hand-tuned from characters/christi.png: white shirt + red half apron
+    name:'CHRISTI', glasses:true, headgear:'none', bowtie:false,
+    shortSleeves:true, bun:true, halfApron:'#8a3a35',
+    sy:0.9,
+    pal:{ out:'#0a0b0f',
+      skin:'#e2b18e', skinHi:'#f0c7a6', skinLo:'#c69771',
+      torso:'#e9e7e0', torsoHi:'#f7f5ef', hoodIn:'#cfccc2',
+      arm:'#e9e7e0', armHi:'#f4f2ec', armLo:'#d5d2c8',
+      pant:'#131318', pantHi:'#1e1e26',
+      shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
+      hair:'#241a14', hairHi:'#38291d', glass:'#0b0b10', lens:'#cfe0ec' }
   },
 };
 
@@ -331,10 +345,12 @@ function drawCharacter(p, ch){
   // FRONT leg
   const fl=limb(hipX+2, hipY, p.flUp, 10, p.flLo, 9, 6,5, c.pantHi, c.pant, c.out);
   drawShoe(fl.hx, fl.hy, c);
-  if(ch.apron){ // skirt over the thighs
+  const apr=ch.apron||ch.halfApron;
+  if(apr){ // apron skirt over the thighs (half aprons are skirt-only)
     rect(hipX-9, hipY-2, 18, 11, c.out);
-    rect(hipX-8, hipY-1, 16, 9, ch.apron);
-    rect(hipX-8, hipY+6, 16, 2, shade(ch.apron,0.72));
+    rect(hipX-8, hipY-1, 16, 9, apr);
+    rect(hipX-8, hipY+6, 16, 2, shade(apr,0.72));
+    if(ch.halfApron) rect(hipX-8, hipY-1, 16, 1, shade(apr,1.35)); // waistband
   }
   // HEAD
   rect(headX-6, headY-3, 13, 15, c.out);
@@ -353,6 +369,7 @@ function drawCharacter(p, ch){
     rect(headX-5, headY+1, 2, 3, c.hair);
     rect(headX-4, headY-2, 8, 1, c.hairHi);
   }
+  if(ch.bun){ rect(headX-8, headY, 3, 5, c.out); rect(headX-7, headY+1, 2, 3, c.hair); }
   if(ch.headgear==='toque'){
     rect(headX-5, headY-11, 11, 9, c.out);
     rect(headX-4, headY-10, 9, 8, c.hat);
@@ -623,7 +640,8 @@ class Fighter {
     ctx.beginPath(); ctx.ellipse(this.x, GROUND, 15*S, 3*S/2, 0, 0, Math.PI*2); ctx.fill();
     ctx.save();
     ctx.translate(Math.round(this.x), Math.round(this.y));
-    ctx.scale(this.facing, 1);
+    // per-character build (sx/sy) scales around the feet so height varies
+    ctx.scale(this.facing*(this.ch.sx||1), this.ch.sy||1);
     if(this.state==='ko') ctx.rotate(-Math.PI/2 * (this.koT*this.koT));
     ctx.translate(-27*S, -60*S);
     G.ctx=ctx; G.S=S;
@@ -926,7 +944,10 @@ function openSelect(){
     const label=document.createElement('span'); label.textContent=ch.name;
     card.append(cv,label);
     const pctx=cv.getContext('2d'); pctx.imageSmoothingEnabled=false;
+    pctx.save();
+    pctx.translate(54,120); pctx.scale(ch.sx||1, ch.sy||1); pctx.translate(-54,-120);
     G.ctx=pctx; G.S=2; drawCharacter(idlePose(0), ch);
+    pctx.restore();
     card.onclick=()=>{
       Sound.sfx('ui');
       if(Game.mode==='local'){
