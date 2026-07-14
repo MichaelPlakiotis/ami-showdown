@@ -1,2 +1,9 @@
+# friends' photos are private: they stay on your machine, never in the repo
+characters/*.png
+characters/*.jpg
+characters/*.jpeg
+characters/*.gif
+characters/*.webp
+
 # raw audio masters — the game ships the mp3 only
 music/*.wav

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ami Showdown — character sampler (local only)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#12161c; color:#e9f4f7; font-family:monospace; padding:24px; display:flex; flex-direction:column; gap:16px; align-items:center; }
+  h1 { font-size:16px; }
+  p { color:#6f8798; font-size:12px; max-width:560px; text-align:center; line-height:1.6; }
+  #drop { border:3px dashed #2a5566; padding:40px 60px; cursor:pointer; text-align:center; }
+  #drop.hot { border-color:#f2c14e; }
+  #row { display:flex; gap:24px; align-items:center; flex-wrap:wrap; justify-content:center; }
+  img#preview { max-width:160px; max-height:200px; image-rendering:auto; }
+  .sw { display:inline-block; width:40px; height:40px; border:2px solid #0c0f14; vertical-align:middle; }
+  textarea { width:min(90vw,640px); height:260px; background:#0c0f14; color:#7fd1e0; border:2px solid #2a5566; padding:12px; font-family:monospace; font-size:12px; }
+  input[type=text] { background:#0c0f14; color:#e9f4f7; border:2px solid #2a5566; padding:8px; font-family:monospace; }
+  button { background:#7fd1e0; border:none; padding:10px 16px; font-family:monospace; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>AMI SHOWDOWN — CHARACTER SAMPLER</h1>
+<p>Runs 100% in your browser — the photo is never uploaded anywhere.
+Drop a portrait photo, tweak the name, then copy the JSON into
+<b>characters/manifest.json</b> and push. Only the colors go online.</p>
+<div id="drop">DROP PHOTO HERE<br>or click to choose<input type="file" id="file" accept="image/*" hidden></div>
+<div id="row">
+  <img id="preview" hidden>
+  <div id="swatches"></div>
+</div>
+<div id="row2" style="display:flex;gap:12px;align-items:center;">
+  <label>key/name: <input type="text" id="name" value="" placeholder="e.g. nick"></label>
+  <button id="copy">COPY JSON</button>
+</div>
+<textarea id="out" readonly placeholder="JSON appears here..."></textarea>
+<script>
+'use strict';
+function shade(hex,f){ const n=parseInt(hex.slice(1),16);
+  const c=[n>>16&255,n>>8&255,n&255].map(v=>Math.max(0,Math.min(255,Math.round(v*f))));
+  return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''); }
+function rgbHex(c){ return '#'+c.map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join(''); }
+
+function extractPhotoColors(img){
+  const c=document.createElement('canvas'); c.width=c.height=48;
+  const x=c.getContext('2d');
+  const s=Math.min(img.width,img.height);
+  x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,48,48);
+  const d=x.getImageData(0,0,48,48).data;
+  const skin=[],hair=[],top=[];
+  for(let y=0;y<48;y++) for(let xx=0;xx<48;xx++){
+    const i=(y*48+xx)*4, r=d[i],g=d[i+1],b=d[i+2];
+    const lum=0.299*r+0.587*g+0.114*b;
+    if(y<34 && r>95&&g>40&&b>20&&r>g&&g>b&&(r-b)>15) skin.push([r,g,b]);
+    if(y<14 && lum<110) hair.push([r,g,b]);
+    if(y>=34) top.push([r,g,b]);
+  }
+  const avg=a=>a.length>20 ? a.reduce((t,p)=>[t[0]+p[0],t[1]+p[1],t[2]+p[2]],[0,0,0]).map(v=>Math.round(v/a.length)) : null;
+  return { skin:avg(skin), hair:avg(hair), top:avg(top) };
+}
+function makeEntry(key, colors){
+  const skin=colors.skin?rgbHex(colors.skin):'#e7b088';
+  const hair=colors.hair?rgbHex(colors.hair):'#1f1a15';
+  const top =colors.top ?rgbHex(colors.top) :'#365a8c';
+  const name=key.replace(/[-_]+/g,' ').toUpperCase();
+  return { [key.toLowerCase()]: { name, glasses:false, headgear:'none', bowtie:false,
+    pal:{ out:'#0a0b0f',
+      skin, skinHi:shade(skin,1.15), skinLo:shade(skin,0.78),
+      torso:top, torsoHi:shade(top,1.25), hoodIn:shade(top,0.55),
+      arm:top, armHi:shade(top,1.2), armLo:shade(top,0.7),
+      pant:shade(top,0.45), pantHi:shade(top,0.6),
+      shoe:'#282b35', sole:'#e2e4ea', shoeAcc:'#8b909e',
+      hair, hairHi:shade(hair,1.3), glass:'#0b0b10', lens:'#bfe0ec' } } };
+}
+
+let lastColors=null;
+function render(){
+  if(!lastColors) return;
+  const key=(document.getElementById('name').value||'friend').trim();
+  const entry=makeEntry(key,lastColors);
+  document.getElementById('out').value=JSON.stringify(entry,null,2)
+    .replace(/^\{\n|\n\}$/g,'')+',';
+  const sw=document.getElementById('swatches'); sw.innerHTML='';
+  for(const [label,c] of [['skin',lastColors.skin],['hair',lastColors.hair],['shirt',lastColors.top]]){
+    const el=document.createElement('div');
+    el.innerHTML='<span class="sw" style="background:'+(c?rgbHex(c):'#333')+'"></span> '+label+(c?'':' (fallback)');
+    sw.append(el);
+  }
+}
+function handle(file){
+  if(!file) return;
+  const img=new Image();
+  img.onload=()=>{
+    document.getElementById('preview').src=img.src;
+    document.getElementById('preview').hidden=false;
+    lastColors=extractPhotoColors(img);
+    if(!document.getElementById('name').value)
+      document.getElementById('name').value=file.name.replace(/\.[^.]+$/,'');
+    render();
+  };
+  img.src=URL.createObjectURL(file);
+}
+const drop=document.getElementById('drop');
+drop.onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>handle(e.target.files[0]);
+drop.ondragover=e=>{ e.preventDefault(); drop.classList.add('hot'); };
+drop.ondragleave=()=>drop.classList.remove('hot');
+drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('hot'); handle(e.dataTransfer.files[0]); };
+document.getElementById('name').oninput=render;
+document.getElementById('copy').onclick=()=>{
+  navigator.clipboard.writeText(document.getElementById('out').value);
+};
+</script>
+</body>
+</html>

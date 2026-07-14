@@ -245,23 +245,6 @@ function shade(hex, f){
 }
 function rgbHex(c){ return '#'+c.map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,'0')).join(''); }
 
-function extractPhotoColors(img){
-  const c=document.createElement('canvas'); c.width=c.height=48;
-  const x=c.getContext('2d');
-  const s=Math.min(img.width,img.height);
-  x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,48,48);
-  const d=x.getImageData(0,0,48,48).data;
-  const skin=[],hair=[],top=[];
-  for(let y=0;y<48;y++) for(let xx=0;xx<48;xx++){
-    const i=(y*48+xx)*4, r=d[i],g=d[i+1],b=d[i+2];
-    const lum=0.299*r+0.587*g+0.114*b;
-    if(y<34 && r>95&&g>40&&b>20&&r>g&&g>b&&(r-b)>15) skin.push([r,g,b]);
-    if(y<14 && lum<110) hair.push([r,g,b]);
-    if(y>=34) top.push([r,g,b]);
-  }
-  const avg=a=>a.length>20 ? a.reduce((t,p)=>[t[0]+p[0],t[1]+p[1],t[2]+p[2]],[0,0,0]).map(v=>Math.round(v/a.length)) : null;
-  return { skin:avg(skin), hair:avg(hair), top:avg(top) };
-}
 function makeChar(name, colors, opts){
   const skin=colors.skin?rgbHex(colors.skin):'#e7b088';
   const hair=colors.hair?rgbHex(colors.hair):'#1f1a15';
@@ -276,29 +259,15 @@ function makeChar(name, colors, opts){
       hair, hairHi:shade(hair,1.3), glass:'#0b0b10', lens:'#bfe0ec' } }, opts||{});
 }
 
-function repoPath(){
-  const h=location.hostname, seg=location.pathname.split('/').filter(Boolean);
-  if(h.endsWith('.github.io')&&seg.length) return h.split('.')[0]+'/'+seg[0];
-  return 'MichaelPlakiotis/ami-showdown';
-}
-async function loadPhotoCharacters(){
+// Extra fighters live in characters/manifest.json — colors only, no photos.
+// Generate an entry locally with tools/sample.html; pictures never get uploaded.
+async function loadRosterManifest(){
   try{
-    const res=await fetch('https://api.github.com/repos/'+repoPath()+'/contents/characters');
+    const res=await fetch('characters/manifest.json', {cache:'no-store'});
     if(!res.ok) return;
     const list=await res.json();
-    for(const f of list){
-      if(f.type!=='file' || !/\.(png|jpe?g|gif|webp)$/i.test(f.name)) continue;
-      if(CHARACTERS[f.name.replace(/\.[^.]+$/,'').toLowerCase()]) continue; // hand-tuned built-in wins over auto-sample
-      try{
-        const img=new Image(); img.crossOrigin='anonymous';
-        await new Promise((ok,fail)=>{
-          img.onload=ok;
-          img.onerror=()=>{ img.onerror=fail; img.src=f.download_url; }; // CDN fallback
-          img.src='characters/'+encodeURIComponent(f.name);              // same-origin first
-        });
-        const name=f.name.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ').toUpperCase();
-        ROSTER['img:'+f.name]=makeChar(name, extractPhotoColors(img));
-      }catch(e){}
+    for(const [key,def] of Object.entries(list)){
+      if(def && def.name && def.pal && !ROSTER[key]) ROSTER[key]=def;
     }
   }catch(e){}
 }
@@ -1132,7 +1101,7 @@ const ctx=$('game').getContext('2d');
 ctx.imageSmoothingEnabled=false;
 Input.init(); setupTouch(); wireUI(); fit();
 Music.init();
-loadPhotoCharacters();
+loadRosterManifest();
 
 let last=performance.now(), acc=0; const STEP=1/60;
 function frame(now){
