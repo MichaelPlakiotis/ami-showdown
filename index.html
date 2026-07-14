@@ -231,6 +231,18 @@ const CHARACTERS = {
       shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
       hair:'#241a14', hairHi:'#38291d', glass:'#0b0b10', lens:'#cfe0ec' }
   },
+  eirini: {
+    // hand-tuned from characters/eirini.png: all-black hoodie fit, grey sneakers
+    name:'EIRINI', glasses:true, headgear:'none', bowtie:false,
+    sx:1.12,
+    pal:{ out:'#0a0b0f',
+      skin:'#eec9a8', skinHi:'#f8dcbf', skinLo:'#d2a87f',
+      torso:'#17171d', torsoHi:'#26262e', hoodIn:'#0c0d12',
+      arm:'#17171d', armHi:'#26262e', armLo:'#101014',
+      pant:'#1a1a20', pantHi:'#26262e',
+      shoe:'#4a4d55', sole:'#c9ccd3', shoeAcc:'#7d8089',
+      hair:'#241d16', hairHi:'#332a20', glass:'#0b0b10', lens:'#cfe0ec' }
+  },
 };
 
 // ------------------------------------------------ roster: built-ins + photo characters
@@ -451,6 +463,7 @@ const DINERS=[ makeChar('',{skin:[231,176,136],hair:[44,31,22],top:[122,59,70]})
                makeChar('',{skin:[181,125,85],hair:[21,18,16],top:[140,122,59]}) ];
 const COOKS=[ makeChar('',{skin:[231,176,136],hair:[44,31,22],top:[230,233,238]},{headgear:'toque'}),
               makeChar('',{skin:[181,125,85],hair:[21,18,16],top:[223,227,234]},{headgear:'toque'}) ];
+const BARTENDER=makeChar('',{skin:[231,176,136],hair:[31,26,21],top:[232,228,220]});
 
 function eatPose(now,seed){
   const B=basePose();
@@ -488,6 +501,73 @@ const STAGES={
     ctx.fillStyle='#2f2620'; ctx.fillRect(0,GROUND-2,VW,2);
     ctx.fillStyle='#5d4a38'; ctx.fillRect(0,GROUND,VW,VH-GROUND);
     ctx.fillStyle='#503f30'; for(let fx=0;fx<VW;fx+=40) ctx.fillRect(fx,GROUND,2,VH-GROUND);
+  }},
+  mainhall:{ name:'MAIN HALL', draw(ctx,now){
+    // red-lit ceiling, white cornice band (from the Ami main hall photo)
+    ctx.fillStyle='#6e1414'; ctx.fillRect(0,0,VW,46);
+    ctx.fillStyle='#a32222'; ctx.fillRect(0,6,VW,18);
+    ctx.fillStyle='#8c1b1b'; ctx.fillRect(0,24,VW,12);
+    ctx.fillStyle='#e8e2d6'; ctx.fillRect(0,40,VW,6);
+    ctx.fillStyle='#b8b2a6'; ctx.fillRect(0,44,VW,2);
+    // coffered ceiling grid with brass lamps
+    ctx.fillStyle='#241a12'; ctx.fillRect(0,46,VW,32);
+    ctx.fillStyle='#3a2a1c';
+    for(let gx=0;gx<VW;gx+=40) ctx.fillRect(gx,46,4,32);
+    ctx.fillRect(0,60,VW,3);
+    for(let lx=20;lx<VW;lx+=80){
+      ctx.fillStyle='#e8c56a'; ctx.fillRect(lx-2,68,6,5);
+      ctx.fillStyle='#fff7d8'; ctx.fillRect(lx,69,2,2);
+    }
+    // dark wall with a red wash
+    ctx.fillStyle='#2a1613'; ctx.fillRect(0,78,VW,GROUND-78);
+    ctx.fillStyle='#471a15'; ctx.fillRect(0,78,VW,10);
+    // back bar: bottle shelves + red-lit cabinets
+    ctx.fillStyle='#180e0b'; ctx.fillRect(96,96,288,72);
+    const bc=['#7fd1e0','#f2c14e','#f2795e','#59d98c','#c9a0e0','#e2e4ea'];
+    for(let s=0;s<3;s++){
+      const sy=108+s*20;
+      ctx.fillStyle='#3a2a1c'; ctx.fillRect(100,sy+8,280,3);
+      for(let b=0;b<18;b++){ ctx.fillStyle=bc[(b+s)%bc.length]; ctx.fillRect(106+b*15, sy, 4, 8); }
+    }
+    for(const cx of [110,340]){
+      ctx.fillStyle='#5c1212'; ctx.fillRect(cx,100,30,28);
+      ctx.fillStyle='#a82424'; ctx.fillRect(cx+3,103,24,22);
+      ctx.fillStyle='#e05050'; ctx.fillRect(cx+6,106,8,8);
+    }
+    // art print on the right wall
+    ctx.fillStyle='#e8e2d6'; ctx.fillRect(418,104,26,32);
+    ctx.fillStyle='#59d98c'; ctx.fillRect(421,108,9,10);
+    ctx.fillStyle='#f2795e'; ctx.fillRect(430,112,10,12);
+    ctx.fillStyle='#7fd1e0'; ctx.fillRect(423,122,14,8);
+    // bartender working behind the counter
+    drawMini(ctx, 240, 196, eatPose(now,2), BARTENDER, 1);
+    // bar counter, flowers, stools
+    ctx.fillStyle='#f2795e'; ctx.fillRect(300,162,3,3);
+    ctx.fillStyle='#f2c14e'; ctx.fillRect(304,160,3,3);
+    ctx.fillStyle='#59d98c'; ctx.fillRect(301,165,4,5);
+    ctx.fillStyle='#6b4a33'; ctx.fillRect(90,170,300,6);
+    ctx.fillStyle='#140d0a'; ctx.fillRect(90,176,300,26);
+    ctx.fillStyle='#241610'; for(let px3=100;px3<380;px3+=30) ctx.fillRect(px3,180,3,18);
+    for(const sx2 of [140,210,280,350]){
+      ctx.fillStyle='#0a0b0f'; ctx.fillRect(sx2-8,202,16,4);
+      ctx.fillStyle='#7a2a2a'; ctx.fillRect(sx2-7,202,14,3);
+      ctx.fillStyle='#1c1410'; ctx.fillRect(sx2-5,206,2,24); ctx.fillRect(sx2+3,206,2,24);
+    }
+    // chevron tiled floor (pre-rendered once — it's a lot of tiny tiles)
+    if(!this._floor){
+      const f=document.createElement('canvas'); f.width=VW; f.height=VH-GROUND;
+      const fx=f.getContext('2d');
+      fx.fillStyle='#15100d'; fx.fillRect(0,0,VW,VH-GROUND);
+      const cols=['#1a1a1e','#d8d2c6','#6b4a33'];
+      for(let row=0; row*8<VH-GROUND; row++){
+        for(let x=-16; x<VW+16; x+=16){
+          fx.fillStyle=cols[(((x+16)/16)+row)%3];
+          for(let k=0;k<4;k++){ fx.fillRect(x+k*2, row*8+k*2, 3,3); fx.fillRect(x+8+k*2, row*8+6-k*2, 3,3); }
+        }
+      }
+      this._floor=f;
+    }
+    ctx.drawImage(this._floor, 0, GROUND);
   }},
   kitchen:{ name:'THE KITCHEN', draw(ctx,now){
     ctx.fillStyle='#8fa6ad'; ctx.fillRect(0,0,VW,GROUND);            // tiled wall
