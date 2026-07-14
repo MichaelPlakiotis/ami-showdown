@@ -106,7 +106,7 @@
   <button class="px cyan" id="m-online">ONLINE 1V1</button>
   <button class="px" id="m-local">LOCAL VS</button>
   <button class="ghost" id="m-sound">&#9834; SOUND: ON</button>
-  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN</div>
+  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK</div>
 </div>
 
 <div class="screen" id="scr-online">
@@ -164,11 +164,18 @@ const GROUND = 232;
 const S = 2;                       // device px per sprite-grid px
 const MAX_HP = 100, ROUND_TIME = 99;
 const MOVE_SPEED = 120, JUMP_V = -300, GRAVITY = 820;
-// Shared move set (M1: identical for every character)
+// Shared move set (identical for every character). range = horizontal reach,
+// vert = vertical tolerance. Kicks reach clearly further than punches; back+
+// attack and air+attack select the stronger, slower variants below.
 const MOVES = {
-  punch: { damage:6,  range:36, startup:60,  active:80,  recovery:160, knockback:70  },
-  kick:  { damage:10, range:44, startup:100, active:100, recovery:220, knockback:130 },
+  punch:  { damage:6,  range:34, vert:26, startup:60,  active:80,  recovery:160, knockback:70  },
+  kick:   { damage:10, range:52, vert:30, startup:100, active:100, recovery:220, knockback:130 },
+  bpunch: { damage:8,  range:38, vert:28, startup:130, active:80,  recovery:200, knockback:120 }, // spinning backfist
+  bkick:  { damage:13, range:54, vert:34, startup:170, active:100, recovery:260, knockback:180 }, // twist kick
+  apunch: { damage:9,  range:42, vert:50, startup:80,  active:130, recovery:140, knockback:130 }, // superman punch
+  akick:  { damage:12, range:50, vert:55, startup:90,  active:150, recovery:150, knockback:170 }, // dropkick
 };
+const AIR_MOVES = { apunch:true, akick:true };
 
 // ------------------------------------------------ characters = palettes + flags
 // Adding a friend = one new entry here (see PLAN.md / characters folder).
@@ -437,6 +444,29 @@ function kickPose(t){
   const ex={...B, flUp:86, flLo:92, lean:-12, blUp:-4, baUp:14, baLo:92, faUp:16, faLo:98, bob:1};
   return keyframes([{time:0,pose:B},{time:0.18,pose:ch},{time:0.3,pose:ex},{time:0.55,pose:ex},{time:1,pose:B}], t);
 }
+function bpunchPose(t){ // spinning backfist: coil away, whip the arm around
+  const B=basePose();
+  const wind={...B, lean:-14, head:-4, faUp:-50, faLo:-70, baUp:60, baLo:140, bob:1};
+  const hit ={...B, lean:18, head:4, faUp:100, faLo:96, baUp:20, baLo:110, bob:2};
+  return keyframes([{time:0,pose:B},{time:0.25,pose:wind},{time:0.42,pose:hit},{time:0.62,pose:hit},{time:1,pose:B}], t);
+}
+function bkickPose(t){ // twist kick: lean back, leg sweeps up high
+  const B=basePose();
+  const wind={...B, lean:-12, flUp:20, flLo:5, faUp:-30, faLo:-60, baUp:50, baLo:130, bob:-1};
+  const hit ={...B, lean:-22, head:-4, flUp:105, flLo:100, blUp:2, blLo:2, faUp:-45, faLo:-80, baUp:60, baLo:140, bob:2};
+  return keyframes([{time:0,pose:B},{time:0.28,pose:wind},{time:0.45,pose:hit},{time:0.68,pose:hit},{time:1,pose:B}], t);
+}
+function apunchPose(t){ // superman punch: legs trail, fist leads the lunge
+  const B=jumpPose();
+  const hit={ lean:22, bob:0, head:4, faUp:95, faLo:92, baUp:-30, baLo:-60, blUp:-40, blLo:-55, flUp:-15, flLo:-30 };
+  return keyframes([{time:0,pose:B},{time:0.3,pose:hit},{time:0.7,pose:hit},{time:1,pose:B}], t);
+}
+function akickPose(t){ // dropkick: both legs out front, body laid back
+  const B=jumpPose();
+  const hit={ lean:-28, bob:0, head:-6, faUp:-50, faLo:-70, baUp:-45, baLo:-65, flUp:82, flLo:86, blUp:74, blLo:78 };
+  return keyframes([{time:0,pose:B},{time:0.25,pose:hit},{time:0.75,pose:hit},{time:1,pose:B}], t);
+}
+const ATTACK_POSES={ punch:punchPose, kick:kickPose, bpunch:bpunchPose, bkick:bkickPose, apunch:apunchPose, akick:akickPose };
 function blockPose(){ return {...basePose(), faUp:42, faLo:-35, baUp:30, baLo:-25, lean:-3, bob:0.5}; }
 function jumpPose(){ return { lean:4, bob:0, head:0, baUp:55, baLo:150, faUp:55, faLo:150, blUp:-32, blLo:-48, flUp:36, flLo:-18 }; }
 function hitstunPose(){ return { lean:-16, bob:1, head:-4, baUp:-15, baLo:-50, faUp:-25, faLo:-60, blUp:-20, blLo:-10, flUp:22, flLo:14 }; }
@@ -557,10 +587,11 @@ class Fighter {
     this.x=x; this.y=GROUND; this.vx=0; this.vy=0;
     this.facing=facing; this.grounded=true;
     this.hp=MAX_HP; this.state='idle'; this.stateTimer=0;
-    this.hitThisSwing=false; this.koT=0;
+    this.hitThisSwing=false; this.koT=0; this.airAttacked=false;
   }
   isActionable(){ return this.state==='idle'||this.state==='walk'||this.state==='jump'; }
-  startMove(name){ this.state=name; this.stateTimer=0; this.hitThisSwing=false; Sound.sfx(name); }
+  startMove(name){ this.state=name; this.stateTimer=0; this.hitThisSwing=false;
+    Sound.sfx(name.endsWith('punch')?'punch':'kick'); }
 
   update(dt, input, opponent, game){
     if(this.state==='ko'){ this.koT=Math.min(1,this.koT+dt*2.5); return; }
@@ -569,8 +600,16 @@ class Fighter {
     if(this.isActionable()) this.facing = opponent.x>this.x ? 1 : -1;
 
     if(this.isActionable()){
-      if(input.punch) this.startMove('punch');
-      else if(input.kick) this.startMove('kick');
+      // holding away from the opponent picks the back variants; airborne picks air ones
+      const back=(this.facing===1&&input.left)||(this.facing===-1&&input.right);
+      if(input.punch){
+        if(!this.grounded){ if(!this.airAttacked){ this.airAttacked=true; this.vx=this.facing*170; this.startMove('apunch'); } }
+        else this.startMove(back?'bpunch':'punch');
+      }
+      else if(input.kick){
+        if(!this.grounded){ if(!this.airAttacked){ this.airAttacked=true; this.vx=this.facing*190; this.startMove('akick'); } }
+        else this.startMove(back?'bkick':'kick');
+      }
       else if(input.block && this.grounded){ this.state='block'; this.stateTimer=0; }
       else if(input.jump && this.grounded){ this.vy=JUMP_V; this.grounded=false; this.state='jump'; }
       else if(this.grounded){
@@ -580,13 +619,15 @@ class Fighter {
     } else if(this.state==='block'){
       if(!input.block) this.state='idle';
       this.vx*=0.8;
-    } else if(this.state==='punch'||this.state==='kick'){
-      this.vx=0;
+    } else if(MOVES[this.state]){
+      const air=AIR_MOVES[this.state];
+      if(!air) this.vx=0;              // air moves keep their lunge momentum
       const mv=MOVES[this.state], t=this.stateTimer*1000;
       if(t>mv.startup && t<=mv.startup+mv.active && !this.hitThisSwing){
         if(this.checkHit(opponent,mv,game)) this.hitThisSwing=true;
       }
-      if(t>mv.startup+mv.active+mv.recovery) this.state='idle';
+      if(air && this.grounded) this.state='idle';   // landing ends an air move
+      else if(t>mv.startup+mv.active+mv.recovery) this.state=this.grounded?'idle':'jump';
     } else if(this.state==='hitstun'){
       this.vx*=0.9;
       if(this.stateTimer>0.28) this.state='idle';
@@ -595,14 +636,14 @@ class Fighter {
 
     this.x+=this.vx*dt; this.y+=this.vy*dt;
     if(this.y>=GROUND){ this.y=GROUND; this.vy=0;
-      if(!this.grounded){ this.grounded=true; if(this.state==='jump') this.state='idle'; } }
+      if(!this.grounded){ this.grounded=true; this.airAttacked=false; if(this.state==='jump') this.state='idle'; } }
     this.x=Math.max(24, Math.min(VW-24, this.x));
   }
 
   checkHit(op, mv, game){
     const dist=Math.abs(op.x-this.x), vert=Math.abs(op.y-this.y);
     const facingOk=(this.facing===1&&op.x>this.x)||(this.facing===-1&&op.x<this.x);
-    if(dist<=mv.range && vert<=26 && facingOk){
+    if(dist<=mv.range && vert<=(mv.vert||26) && facingOk){
       game.onHit(this, op, mv);
       return true;
     }
@@ -622,12 +663,14 @@ class Fighter {
   }
 
   pose(now){
+    if(ATTACK_POSES[this.state]){
+      const mv=MOVES[this.state];
+      return ATTACK_POSES[this.state](this.stateTimer*1000/(mv.startup+mv.active+mv.recovery));
+    }
     switch(this.state){
       case 'walk': return walkPose(now);
       case 'jump': return jumpPose();
       case 'block': return blockPose();
-      case 'punch': { const mv=MOVES.punch; return punchPose(this.stateTimer*1000/(mv.startup+mv.active+mv.recovery)); }
-      case 'kick': { const mv=MOVES.kick; return kickPose(this.stateTimer*1000/(mv.startup+mv.active+mv.recovery)); }
       case 'hitstun': return hitstunPose();
       case 'ko': return koPose();
       default: return idlePose(now);
