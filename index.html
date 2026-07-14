@@ -105,7 +105,10 @@
   <div class="sub">WAITERS VS KITCHEN STAFF</div>
   <button class="px cyan" id="m-online">ONLINE 1V1</button>
   <button class="px" id="m-local">LOCAL VS</button>
-  <button class="ghost" id="m-sound">&#9834; SOUND: ON</button>
+  <div class="row">
+    <button class="ghost" id="m-music">&#9835; MUSIC: ON</button>
+    <button class="ghost" id="m-sound">&#9834; SFX: ON</button>
+  </div>
   <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK</div>
 </div>
 
@@ -580,6 +583,21 @@ const Sound = {
   }
 };
 
+// ------------------------------------------------ background music (independent of SFX)
+const Music = {
+  on:true, el:null, unlocked:false,
+  init(){
+    this.el=new Audio('music/theme.mp3');
+    this.el.loop=true; this.el.volume=0.45; this.el.preload='auto';
+    // browsers block autoplay until the first user gesture
+    const unlock=()=>{ this.unlocked=true; this.start();
+      removeEventListener('pointerdown',unlock); removeEventListener('keydown',unlock); };
+    addEventListener('pointerdown',unlock); addEventListener('keydown',unlock);
+  },
+  start(){ if(this.on&&this.unlocked&&this.el.paused) this.el.play().catch(()=>{}); },
+  toggle(){ this.on=!this.on; if(this.on) this.start(); else this.el.pause(); return this.on; }
+};
+
 // ------------------------------------------------ fighter logic
 class Fighter {
   constructor(charKey, x, facing){
@@ -1041,7 +1059,9 @@ function wireUI(){
   $('m-online').onclick=()=>{ Sound.sfx('ui'); show('scr-online');
     $('o-status').innerHTML='HOST SHARES A 4-LETTER CODE. FRIEND TYPES IT AND JOINS.<br>FREE P2P — NO SERVER, NO ACCOUNT.'; };
   $('m-sound').onclick=()=>{ Sound.on=!Sound.on; Sound.sfx('ui');
-    $('m-sound').innerHTML='&#9834; SOUND: '+(Sound.on?'ON':'OFF'); };
+    $('m-sound').innerHTML='&#9834; SFX: '+(Sound.on?'ON':'OFF'); };
+  $('m-music').onclick=()=>{ const on=Music.toggle(); Sound.sfx('ui');
+    $('m-music').innerHTML='&#9835; MUSIC: '+(on?'ON':'OFF'); };
   $('o-back').onclick=()=>Game.toMenu();
   $('w-back').onclick=()=>Game.toMenu();
   $('r-menu').onclick=()=>Game.toMenu();
@@ -1102,6 +1122,7 @@ addEventListener('resize', fit);
 const ctx=$('game').getContext('2d');
 ctx.imageSmoothingEnabled=false;
 Input.init(); setupTouch(); wireUI(); fit();
+Music.init();
 loadPhotoCharacters();
 
 let last=performance.now(), acc=0; const STEP=1/60;
