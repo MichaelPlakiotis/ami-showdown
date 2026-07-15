@@ -64,6 +64,20 @@
   .charcard canvas { image-rendering:pixelated; background:#4a6c80; }
   .charcard span { font-size:8px; color:#dff3f8; }
 
+  /* ---- scrollable full-screen pickers (select / stage) ---- */
+  .screen.scroll {
+    justify-content:flex-start; gap:14px;
+    overflow-y:auto; touch-action:pan-y; -webkit-overflow-scrolling:touch;
+    padding:18px 16px calc(28px + env(safe-area-inset-bottom));
+  }
+  .cardgrid {
+    display:grid; gap:10px; width:100%; max-width:960px; margin:0 auto;
+    grid-template-columns:repeat(auto-fill, minmax(104px, 1fr));
+  }
+  .cardgrid.stages { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+  .cardgrid .charcard { padding:8px; gap:6px; }
+  .cardgrid .charcard canvas { width:100%; max-width:132px; height:auto; }
+
   /* ---- touch controls ---- */
   #touch-ui { position:fixed; inset:0; z-index:10; display:none; pointer-events:none; }
   #touch-ui.on { display:block; }
@@ -130,17 +144,17 @@
   <button class="ghost" id="w-back">&#8592; CANCEL</button>
 </div>
 
-<div class="screen" id="scr-select">
+<div class="screen scroll" id="scr-select">
   <h1 style="font-size:14px;">CHOOSE YOUR FIGHTER</h1>
   <div class="sub" id="s-who">PLAYER 1</div>
-  <div class="row" id="s-cards"></div>
+  <div class="cardgrid" id="s-cards"></div>
   <div class="hint" id="s-status"></div>
 </div>
 
-<div class="screen" id="scr-stage">
+<div class="screen scroll" id="scr-stage">
   <h1 style="font-size:14px;">CHOOSE THE STAGE</h1>
   <div class="sub" id="st-who"></div>
-  <div class="row" id="st-cards"></div>
+  <div class="cardgrid stages" id="st-cards"></div>
 </div>
 
 <div class="screen" id="scr-result" style="background:transparent; pointer-events:none;">
@@ -1083,6 +1097,8 @@ function openSelect(){
     pctx.restore();
     card.onclick=()=>{
       Sound.sfx('ui');
+      for(const c of $('s-cards').children) c.classList.remove('sel');
+      card.classList.add('sel');
       if(Game.mode==='local'){
         Game.picks[Game.pickTurn]=key;
         if(Game.pickTurn===1){ Game.pickTurn=2; $('s-who').textContent='PLAYER 2 — PICK'; }
