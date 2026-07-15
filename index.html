@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body {
@@ -54,6 +55,8 @@
     background:transparent; border:2px solid #2a5566; padding:9px 12px; cursor:pointer;
   }
   input.px { min-width:0; width:150px; text-align:center; text-transform:uppercase; }
+  .px.sm { min-width:0; padding:12px 10px; font-size:9px; }
+  #w-qr { width:112px; height:112px; image-rendering:pixelated; background:#e9f4f7; border:4px solid #2a5566; }
   .code { font-size:26px; color:#f2c14e; letter-spacing:8px; text-shadow:3px 3px 0 #2a5566; }
   .row { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
   .charcard {
@@ -127,7 +130,7 @@
     <button class="ghost" id="m-music">&#9835; MUSIC: ON</button>
     <button class="ghost" id="m-sound">&#9834; SFX: ON</button>
   </div>
-  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK<br><br>NET V3 — BOTH PLAYERS NEED THE SAME VERSION</div>
+  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK<br><br>NET V4 — BOTH PLAYERS NEED THE SAME VERSION</div>
 </div>
 
 <div class="screen" id="scr-online">
@@ -144,7 +147,8 @@
 <div class="screen" id="scr-wait">
   <h1>ROOM CODE</h1>
   <div class="code" id="w-code">----</div>
-  <div class="hint" id="w-status">WAITING FOR CHALLENGER...</div>
+  <canvas id="w-qr" width="1" height="1"></canvas>
+  <div class="hint" id="w-status">WAITING FOR CHALLENGER...<br>FRIEND TYPES THE CODE — OR SCANS THE QR.</div>
   <button class="ghost" id="w-back">&#8592; CANCEL</button>
 </div>
 
@@ -163,9 +167,12 @@
 
 <div class="screen" id="scr-result" style="background:transparent; pointer-events:none;">
   <div style="flex:1"></div>
+  <div class="hint" id="r-status"></div>
   <div class="row" style="pointer-events:auto; margin-bottom:16px;">
-    <button class="px gold" id="r-rematch">REMATCH</button>
-    <button class="px" id="r-menu">MENU</button>
+    <button class="px sm gold" id="r-rematch">REMATCH</button>
+    <button class="px sm cyan" id="r-map">CHANGE STAGE</button>
+    <button class="px sm" id="r-chars">CHANGE FIGHTERS</button>
+    <button class="px sm red" id="r-menu">MENU</button>
   </div>
 </div>
 
@@ -1013,7 +1020,7 @@ function setupTouch(){
 
 // ------------------------------------------------ networking (PeerJS, free cloud broker)
 const NET_PREFIX='ami-showdown-wvks-';
-const PROTO=3; // bump when net messages change; mismatched builds refuse to fight
+const PROTO=4; // bump when net messages change; mismatched builds refuse to fight
 // STUN finds a direct phone-to-phone path; the free TURN relays below carry
 // the match when a direct path is impossible (mobile data / carrier-grade NAT
 // / strict routers — the "stuck on CONNECTING" cases).
@@ -1069,7 +1076,7 @@ const Game = {
   my:null, remote:null,
   picks:{}, pickTurn:1, stage:'restaurant', round:0,
   timer:ROUND_TIME, over:false, winner:null, banner:'', bannerT:0,
-  shake:0, sparks:[], rematchMe:false, rematchThem:false, _snap:null,
+  shake:0, sparks:[], nextMe:null, nextThem:null, _snap:null,
 
   onHit(attacker, victim, mv){
     // online: only my own attacks are authoritative; victim applies damage on its side
@@ -1086,7 +1093,7 @@ const Game = {
     this.over=true; this.phase='over';
     this.winner = loser===this.p1 ? this.p2 : this.p1;
     this.banner = this.winner.ch.name+' WINS!'; this.bannerT=0;
-    this.rematchMe=this.rematchThem=false;
+    this.nextMe=this.nextThem=null; $('r-status').textContent='';
     setTimeout(()=>show('scr-result'), 900);
   },
   spark(x,y){ for(let i=0;i<10;i++) this.sparks.push({x,y,
@@ -1103,8 +1110,7 @@ const Game = {
     // new round: bump the round counter and drop any snapshot from the previous
     // round, otherwise a stale KO state instantly ends the rematch on one side
     this.round++; this._snap=null;
-    this.rematchMe=this.rematchThem=false;
-    $('r-rematch').textContent='REMATCH';
+    this.nextMe=this.nextThem=null; $('r-status').textContent='';
     this.timer=ROUND_TIME; this.over=false; this.winner=null;
     this.banner='FIGHT!'; this.bannerT=0; this.sparks.length=0;
     this.phase='fight';
@@ -1173,7 +1179,7 @@ const Game = {
       this.picks[this.net.isHost?2:1]=d.key; this.trySelectDone();
     }
     else if(d.t==='stage'){ this.stage = STAGES[d.key]?d.key:'restaurant'; this.startFight(); }
-    else if(d.t==='rematch'){ this.rematchThem=true; this.tryRematch(); }
+    else if(d.t==='next'){ this.nextThem=d.c; this.updateResultStatus(); this.tryNext(); }
     else if(d.t==='hello'){
       if(d.v!==PROTO){
         this.toMenu();
@@ -1183,16 +1189,33 @@ const Game = {
   },
   trySelectDone(){
     const mine=this.picks[this.net.isHost?1:2], theirs=this.picks[this.net.isHost?2:1];
+    const them = theirs ? 'OPPONENT PICKED: '+(ROSTER[theirs]?ROSTER[theirs].name:theirs)
+                        : 'OPPONENT IS PICKING...';
     if(mine&&theirs){
       if(this.net.isHost) openStageSelect();
-      else $('s-status').textContent='HOST IS PICKING THE STAGE...';
+      else $('s-status').textContent=them+' — HOST IS PICKING THE STAGE...';
     }
-    else $('s-status').textContent = mine?'WAITING FOR OPPONENT...':'';
+    else $('s-status').textContent=them;
   },
-  tryRematch(){
-    if(this.mode==='local'){ this.startFight(); return; }
-    if(this.rematchMe&&this.rematchThem) this.startFight();
-    else if(this.rematchMe) $('r-rematch').textContent='WAITING...';
+  // post-round: each side picks rematch / new stage / new fighters; both see the
+  // other's choice, and the bigger change wins (fighters > stage > rematch)
+  updateResultStatus(){
+    const L={rematch:'REMATCH', stage:'CHANGE STAGE', chars:'CHANGE FIGHTERS'};
+    let s='';
+    if(this.nextMe) s+='YOU: '+L[this.nextMe];
+    if(this.nextThem) s+=(s?'  ·  ':'')+'OPPONENT: '+L[this.nextThem];
+    $('r-status').textContent=s;
+  },
+  tryNext(){
+    if(!(this.nextMe&&this.nextThem)) return;
+    const pr={rematch:0, stage:1, chars:2};
+    const c = pr[this.nextMe]>=pr[this.nextThem] ? this.nextMe : this.nextThem;
+    this.nextMe=this.nextThem=null;
+    if(c==='rematch'){ this.startFight(); return; }
+    this.phase='select'; $('touch-ui').classList.remove('on');
+    if(c==='chars'){ this.picks={}; openSelect(); }
+    else if(this.net.isHost) openStageSelect();
+    else { show('scr-stage'); $('st-who').textContent='HOST IS PICKING THE STAGE...'; $('st-cards').innerHTML=''; }
   },
 
   draw(ctx, now){
@@ -1326,6 +1349,18 @@ function openStageSelect(){
 function randCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let s='';
   for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
 
+function drawQR(cv, text){ // pixel-render the join link as a QR code
+  if(typeof qrcode==='undefined'){ cv.style.display='none'; return; }
+  const qr=qrcode(0,'M'); qr.addData(text); qr.make();
+  const n=qr.getModuleCount(), px=4, q=2;      // q = quiet-zone modules
+  cv.width=cv.height=(n+q*2)*px;
+  const c2=cv.getContext('2d');
+  c2.fillStyle='#e9f4f7'; c2.fillRect(0,0,cv.width,cv.height);
+  c2.fillStyle='#0c0f14';
+  for(let r=0;r<n;r++) for(let col=0;col<n;col++)
+    if(qr.isDark(r,col)) c2.fillRect((col+q)*px,(r+q)*px,px,px);
+}
+
 function wireUI(){
   $('m-local').onclick=()=>{ Sound.sfx('ui'); Game.mode='local'; openSelect(); };
   $('m-online').onclick=()=>{ Sound.sfx('ui'); show('scr-online');
@@ -1337,12 +1372,20 @@ function wireUI(){
   $('o-back').onclick=()=>Game.toMenu();
   $('w-back').onclick=()=>Game.toMenu();
   $('r-menu').onclick=()=>Game.toMenu();
-  $('r-rematch').onclick=()=>{
+  const chooseNext=c=>{
     Sound.sfx('ui');
-    $('r-rematch').textContent='REMATCH';
-    if(Game.mode==='local') Game.startFight();
-    else { Game.rematchMe=true; Game.net.send({t:'rematch'}); Game.tryRematch(); }
+    if(Game.mode==='local'){
+      if(c==='rematch'){ Game.startFight(); return; }
+      Game.phase='select'; $('touch-ui').classList.remove('on');
+      if(c==='chars') openSelect(); else openStageSelect();
+      return;
+    }
+    Game.nextMe=c; Game.net.send({t:'next', c});
+    Game.updateResultStatus(); Game.tryNext();
   };
+  $('r-rematch').onclick=()=>chooseNext('rematch');
+  $('r-map').onclick=()=>chooseNext('stage');
+  $('r-chars').onclick=()=>chooseNext('chars');
 
   const netErr=e=>{
     const msg = e&&e.type==='peer-unavailable' ? 'NO ROOM WITH THAT CODE' :
@@ -1370,20 +1413,32 @@ function wireUI(){
     Sound.sfx('ui');
     Game.mode='online'; Game.picks={};
     const code=randCode();
-    $('w-code').textContent=code; $('w-status').textContent='WAITING FOR CHALLENGER...';
+    $('w-code').textContent=code;
+    $('w-status').innerHTML='WAITING FOR CHALLENGER...<br>FRIEND TYPES THE CODE — OR SCANS THE QR.';
+    drawQR($('w-qr'), location.origin+location.pathname+'?join='+code);
     show('scr-wait');
     Game.net=new Net(); bindNet();
     Game.net.host(code);
+  };
+  const joinRoom=code=>{
+    Game.mode='online'; Game.picks={};
+    $('o-status').textContent='CONNECTING...'; show('scr-online');
+    Game.net=new Net(); bindNet();
+    Game.net.join(code);
   };
   $('o-join').onclick=()=>{
     const code=($('o-code').value||'').trim().toUpperCase();
     if(code.length!==4){ $('o-status').textContent='ENTER THE 4-LETTER CODE'; return; }
     Sound.sfx('ui');
-    Game.mode='online'; Game.picks={};
-    $('o-status').textContent='CONNECTING...';
-    Game.net=new Net(); bindNet();
-    Game.net.join(code);
+    joinRoom(code);
   };
+  // scanned a host's QR: the link carries ?join=CODE — hop straight into the room
+  const qj=new URLSearchParams(location.search).get('join');
+  if(qj && /^[a-z]{4}$/i.test(qj)){
+    history.replaceState(null,'',location.pathname); // a refresh shouldn't rejoin
+    $('o-code').value=qj.toUpperCase();
+    joinRoom(qj.toUpperCase());
+  }
 }
 
 // ------------------------------------------------ boot
