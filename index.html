@@ -1000,29 +1000,45 @@ function setupTouch(){
 // ------------------------------------------------ networking (PeerJS, free cloud broker)
 const NET_PREFIX='ami-showdown-wvks-';
 const PROTO=3; // bump when net messages change; mismatched builds refuse to fight
+// STUN finds a direct phone-to-phone path; the free TURN relays below carry
+// the match when a direct path is impossible (mobile data / carrier-grade NAT
+// / strict routers — the "stuck on CONNECTING" cases).
+const ICE={ config:{ iceServers:[
+  { urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] },
+  { urls:['turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'],
+    username:'openrelayproject', credential:'openrelayproject' }
+]}};
 class Net {
-  constructor(){ this.peer=null; this.conn=null; this.isHost=false;
+  constructor(){ this.peer=null; this.conn=null; this.isHost=false; this.live=false;
     this.onOpen=null; this.onMsg=null; this.onClose=null; this.onError=null; }
   host(code){
     this.isHost=true;
-    this.peer=new Peer(NET_PREFIX+code);
+    this.peer=new Peer(NET_PREFIX+code, ICE);
     this.peer.on('connection', c=>{ if(this.conn){ c.close(); return; } this._bind(c); });
     this.peer.on('error', e=>this.onError&&this.onError(e));
   }
   join(code){
     this.isHost=false;
-    this.peer=new Peer();
-    this.peer.on('open', ()=>this._bind(this.peer.connect(NET_PREFIX+code, {reliable:true})));
+    this.peer=new Peer(ICE);
+    this.peer.on('open', ()=>{
+      this._bind(this.peer.connect(NET_PREFIX+code, {reliable:true}));
+      // room exists but the P2P handshake never completes -> say so instead
+      // of spinning forever
+      this._t=setTimeout(()=>{ if(!this.live) this.onError&&this.onError({type:'timeout'}); }, 15000);
+    });
     this.peer.on('error', e=>this.onError&&this.onError(e));
   }
   _bind(c){
     this.conn=c;
-    c.on('open', ()=>this.onOpen&&this.onOpen());
+    c.on('open', ()=>{ this.live=true; clearTimeout(this._t); this.onOpen&&this.onOpen(); });
     c.on('data', d=>this.onMsg&&this.onMsg(d));
     c.on('close', ()=>this.onClose&&this.onClose());
   }
   send(m){ if(this.conn&&this.conn.open) this.conn.send(m); }
-  destroy(){ try{ this.peer&&this.peer.destroy(); }catch(e){} this.peer=null; this.conn=null; }
+  destroy(){ try{ this.peer&&this.peer.destroy(); }catch(e){} clearTimeout(this._t);
+    this.peer=null; this.conn=null; this.live=false; }
 }
 
 // ------------------------------------------------ game orchestration
@@ -1316,8 +1332,10 @@ function wireUI(){
 
   const netErr=e=>{
     const msg = e&&e.type==='peer-unavailable' ? 'NO ROOM WITH THAT CODE' :
-                e&&e.type==='unavailable-id' ? 'CODE TAKEN — TRY AGAIN' : 'CONNECTION ERROR';
-    $('o-status').textContent=msg; show('scr-online');
+                e&&e.type==='unavailable-id' ? 'CODE TAKEN — TRY AGAIN' :
+                e&&e.type==='timeout' ? 'FOUND THE ROOM BUT COULD NOT CONNECT.<br>BOTH REFRESH AND TRY AGAIN — WIFI HELPS.' :
+                'CONNECTION ERROR';
+    $('o-status').innerHTML=msg; show('scr-online');
   };
   const netClosed=()=>{
     if(Game.mode!=='online') return;
