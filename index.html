@@ -275,7 +275,7 @@ const CHARACTERS = {
       arm:'#e9e7e0', armHi:'#f4f2ec', armLo:'#d5d2c8',
       pant:'#17171d', pantHi:'#23232b',
       shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
-      hair:'#1c1410', hairHi:'#302219', glass:'#0b0b10', lens:'#cfe0ec' }
+      hair:'#0d0d11', hairHi:'#232327', glass:'#0b0b10', lens:'#cfe0ec' }
   },
 };
 
@@ -519,6 +519,13 @@ const DINERS=[ makeChar('',{skin:[231,176,136],hair:[44,31,22],top:[122,59,70]})
 const COOKS=[ makeChar('',{skin:[231,176,136],hair:[44,31,22],top:[230,233,238]},{headgear:'toque'}),
               makeChar('',{skin:[181,125,85],hair:[21,18,16],top:[223,227,234]},{headgear:'toque'}) ];
 const BARTENDER=makeChar('',{skin:[231,176,136],hair:[31,26,21],top:[232,228,220]});
+const WAITER=makeChar('',{skin:[236,195,160],hair:[30,22,16],top:[233,231,224]});
+const PATRONS=[ makeChar('',{skin:[236,195,160],hair:[38,28,20],top:[74,90,140]}),
+                makeChar('',{skin:[207,154,112],hair:[24,18,14],top:[122,59,70]}) ];
+
+// cheap deterministic "random" for ambient events — pure function of time, so
+// it costs nothing, repeats never line up visibly, and needs no netcode
+function hash01(n){ const s=Math.sin(n*127.1)*43758.5453; return s-Math.floor(s); }
 
 function eatPose(now,seed){
   const B=basePose();
@@ -526,6 +533,21 @@ function eatPose(now,seed){
   B.faUp=38+a*60; B.faLo=130-a*100;
   B.bob=Math.sin(now/820+seed*7); B.head=a*2;
   return B;
+}
+function drinkPose(now,seed){                      // raise glass, sip, head back
+  const B=basePose(), c=Math.max(0,Math.min(1,Math.sin(now/1000+seed*4)*1.5));
+  B.faUp=35+c*62; B.faLo=135-c*25; B.head=-c*4;
+  return B;
+}
+function cheerPose(now,seed){                      // both arms up, pumping
+  const B=basePose(), w=Math.sin(now/150+seed*5)*12;
+  B.faUp=168+w; B.faLo=150; B.baUp=168-w; B.baLo=150;
+  B.bob=Math.abs(Math.sin(now/150+seed*5))*1.4; B.head=-2; B.lean=-3;
+  return B;
+}
+function crowdPose(now,seed){                      // eat / drink / cheer at random
+  const r=hash01(Math.floor(now/2600+seed*0.73)*13+seed*7);
+  return r<0.5 ? eatPose(now,seed) : r<0.8 ? drinkPose(now,seed) : cheerPose(now,seed);
 }
 function drawMini(ctx,x,y,pose,ch,face){
   ctx.save(); ctx.translate(x,y); ctx.scale(face||1,1); ctx.translate(-27,-60);
@@ -540,18 +562,49 @@ const STAGES={
     for(const wx of [40, VW-130]){                                  // night windows
       ctx.fillStyle='#20303c'; ctx.fillRect(wx,76,90,54);
       ctx.fillStyle='#e9f4f7'; ctx.fillRect(wx+14,88,2,2); ctx.fillRect(wx+60,96,2,2); ctx.fillRect(wx+38,84,2,2);
+      const car=((now/2600)+wx*0.37)%1;                             // headlights gliding past
+      ctx.fillStyle='rgba(242,193,78,.8)';
+      ctx.fillRect(wx+4+car*76,118,3,2); ctx.fillRect(wx+9+car*76,118,3,2);
       ctx.fillStyle='#2f4757'; ctx.fillRect(wx+43,76,4,54); ctx.fillRect(wx,100,90,4);
       ctx.fillStyle='#5a4636'; ctx.fillRect(wx-4,72,98,4); ctx.fillRect(wx-4,130,98,4);
     }
-    const by=GROUND-34;                                             // diners behind tables
+    // neon AMI sign between the windows, with the occasional flicker
+    ctx.save();
+    ctx.font='9px "Press Start 2P", monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
+    const neon=hash01(Math.floor(now/170)*7)>0.08;
+    if(neon){ ctx.globalAlpha=.3; ctx.fillStyle='#f2795e'; ctx.fillText('AMI',VW/2+1,86); ctx.globalAlpha=1; }
+    ctx.fillStyle=neon?'#f2795e':'#5a2c22'; ctx.fillText('AMI',VW/2,85);
+    ctx.restore();
+    const by=GROUND-34;
+    // a waiter hurries across with a tray every so often (behind the tables)
+    const ws=Math.floor(now/11000), wt=(now%11000)/11000;
+    if(hash01(ws*13)<0.6 && wt<0.5){
+      const dir=hash01(ws*29)<0.5?1:-1, prog=wt/0.5;
+      const xw=dir===1 ? -30+(VW+60)*prog : VW+30-(VW+60)*prog;
+      const wp=walkPose(now); wp.faUp=118; wp.faLo=112;
+      drawMini(ctx,xw,by,wp,WAITER,dir);
+      ctx.fillStyle='#e2e4ea'; ctx.fillRect(Math.round(xw+dir*8-4),by-41,9,2);
+      ctx.fillStyle='#f2c14e'; ctx.fillRect(Math.round(xw+dir*8-2),by-43,4,2);
+    }
+    // diners behind tables: eating, drinking, sometimes cheering the fight
     const seats=[[VW/2-88,0],[VW/2-40,1],[VW/2+44,2],[VW/2+92,3]];
-    for(const [sx,i] of seats) drawMini(ctx,sx,by,eatPose(now,i),DINERS[i%DINERS.length], sx<VW/2?1:-1);
+    for(const [sx,i] of seats) drawMini(ctx,sx,by,crowdPose(now,i),DINERS[i%DINERS.length], sx<VW/2?1:-1);
     for(const tx of [VW/2-64, VW/2+68]){
+      // pendant lamp over each table, warm light pooling below
+      ctx.fillStyle='#1c1410'; ctx.fillRect(tx-1,64,2,22);
+      ctx.fillStyle='#0a0b0f'; ctx.fillRect(tx-7,86,14,7);
+      ctx.fillStyle='#a8302e'; ctx.fillRect(tx-6,87,12,5);
+      ctx.fillStyle='#ffdf8a'; ctx.fillRect(tx-3,93,6,2);
+      ctx.fillStyle='rgba(242,193,78,'+(0.09+0.03*Math.sin(now/260+tx)).toFixed(3)+')';
+      ctx.fillRect(tx-18,95,36,44);
       ctx.fillStyle='#0a0b0f'; ctx.fillRect(tx-31,by-27,62,22);
       ctx.fillStyle='#6b543f'; ctx.fillRect(tx-29,by-25,58,6);
       ctx.fillStyle='#553f2e'; ctx.fillRect(tx-29,by-19,58,12);
       ctx.fillStyle='#e2e4ea'; ctx.fillRect(tx-18,by-28,12,3); ctx.fillRect(tx+8,by-28,12,3);
       ctx.fillStyle='#f2c14e'; ctx.fillRect(tx-15,by-30,6,2); ctx.fillRect(tx+11,by-30,6,2); // food
+      ctx.fillStyle='#cfe0ec'; ctx.fillRect(tx-24,by-32,3,5); ctx.fillRect(tx+22,by-32,3,5); // wine glasses
+      ctx.fillStyle='#e8e2d6'; ctx.fillRect(tx-1,by-31,2,4);                                 // candle
+      ctx.fillStyle=(now/180|0)%2?'#f2c14e':'#f2795e'; ctx.fillRect(tx-1,by-33,2,2);         // flame
     }
     ctx.fillStyle='#2f2620'; ctx.fillRect(0,GROUND-2,VW,2);
     ctx.fillStyle='#5d4a38'; ctx.fillRect(0,GROUND,VW,VH-GROUND);
@@ -572,6 +625,8 @@ const STAGES={
     for(let lx=20;lx<VW;lx+=80){
       ctx.fillStyle='#e8c56a'; ctx.fillRect(lx-2,68,6,5);
       ctx.fillStyle='#fff7d8'; ctx.fillRect(lx,69,2,2);
+      ctx.fillStyle='rgba(232,197,106,'+(0.10+0.05*Math.sin(now/420+lx)).toFixed(3)+')';
+      ctx.fillRect(lx-9,73,20,16);                                  // breathing lamp glow
     }
     // dark wall with a red wash
     ctx.fillStyle='#2a1613'; ctx.fillRect(0,78,VW,GROUND-78);
@@ -584,18 +639,36 @@ const STAGES={
       ctx.fillStyle='#3a2a1c'; ctx.fillRect(100,sy+8,280,3);
       for(let b=0;b<18;b++){ ctx.fillStyle=bc[(b+s)%bc.length]; ctx.fillRect(106+b*15, sy, 4, 8); }
     }
+    { // a random bottle catches the light every beat
+      const gs=Math.floor(now/700), gb=Math.floor(hash01(gs*11)*54);
+      ctx.fillStyle='rgba(255,255,255,.85)';
+      ctx.fillRect(106+(gb%18)*15, 108+Math.floor(gb/18)*20, 2, 2);
+    }
     for(const cx of [110,340]){
       ctx.fillStyle='#5c1212'; ctx.fillRect(cx,100,30,28);
       ctx.fillStyle='#a82424'; ctx.fillRect(cx+3,103,24,22);
       ctx.fillStyle='#e05050'; ctx.fillRect(cx+6,106,8,8);
+      ctx.fillStyle='rgba(224,80,80,'+(0.12+0.09*Math.sin(now/520+cx)).toFixed(3)+')';
+      ctx.fillRect(cx-3,97,36,34);                                  // red cabinet wash
     }
     // art print on the right wall
     ctx.fillStyle='#e8e2d6'; ctx.fillRect(418,104,26,32);
     ctx.fillStyle='#59d98c'; ctx.fillRect(421,108,9,10);
     ctx.fillStyle='#f2795e'; ctx.fillRect(430,112,10,12);
     ctx.fillStyle='#7fd1e0'; ctx.fillRect(423,122,14,8);
-    // bartender working behind the counter
-    drawMini(ctx, 240, 196, eatPose(now,2), BARTENDER, 1);
+    // bartender: stirs, sometimes shakes a cocktail, sometimes slides a drink out
+    const shk=hash01(Math.floor(now/5000)*17)<0.4;
+    let bp2;
+    if(shk){ bp2=basePose(); const sh=Math.sin(now/70)*10;
+      bp2.faUp=120+sh; bp2.faLo=60; bp2.baUp=115-sh; bp2.baLo=70; bp2.bob=Math.sin(now/70)*0.8; }
+    else bp2=eatPose(now,2);
+    drawMini(ctx, 240, 196, bp2, BARTENDER, 1);
+    const ss=Math.floor(now/9000), st2=(now%9000)/9000;
+    if(hash01(ss*23)<0.5 && st2<0.22){                              // drink sliding down the bar
+      const gxx=Math.round(240+(st2/0.22)*(hash01(ss*31)<0.5?110:-110));
+      ctx.fillStyle='#cfe0ec'; ctx.fillRect(gxx,164,4,6);
+      ctx.fillStyle='#f2c14e'; ctx.fillRect(gxx+1,166,2,3);
+    }
     // bar counter, flowers, stools
     ctx.fillStyle='#f2795e'; ctx.fillRect(300,162,3,3);
     ctx.fillStyle='#f2c14e'; ctx.fillRect(304,160,3,3);
@@ -608,6 +681,9 @@ const STAGES={
       ctx.fillStyle='#7a2a2a'; ctx.fillRect(sx2-7,202,14,3);
       ctx.fillStyle='#1c1410'; ctx.fillRect(sx2-5,206,2,24); ctx.fillRect(sx2+3,206,2,24);
     }
+    // two patrons at the bar, drinking and cheering the fight on
+    drawMini(ctx,172,230,crowdPose(now,5),PATRONS[0],1);
+    drawMini(ctx,318,230,crowdPose(now,8),PATRONS[1],-1);
     // chevron tiled floor (pre-rendered once — it's a lot of tiny tiles)
     if(!this._floor){
       const f=document.createElement('canvas'); f.width=VW; f.height=VH-GROUND;
@@ -629,13 +705,41 @@ const STAGES={
     ctx.fillStyle='#7d949b';
     for(let ty=0;ty<GROUND;ty+=22) for(let tx=(ty/22%2)*20;tx<VW;tx+=40) ctx.fillRect(tx,ty,38,20);
     ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(0,0,VW,60);
+    for(const lx2 of [150, VW-150]){                                 // fluorescent strips
+      const lit=hash01(Math.floor(now/130)+lx2)>0.06;
+      ctx.fillStyle='#26333d'; ctx.fillRect(lx2-32,8,64,8);
+      ctx.fillStyle=lit?'#eef6fa':'#8fa6ad'; ctx.fillRect(lx2-28,10,56,4);
+      if(lit){ ctx.fillStyle='rgba(255,255,255,.07)'; ctx.fillRect(lx2-40,16,80,34); }
+    }
     for(const hx of [70,110,VW-100,VW-60]){                          // hanging pans
       ctx.fillStyle='#26333d'; ctx.fillRect(hx,24,2,16);
       ctx.fillStyle='#4a5560'; ctx.fillRect(hx-7,40,16,10);
     }
+    // the pass: ticket rail, plated dishes waiting, service bell that gets dinged
+    ctx.fillStyle='#26333d'; ctx.fillRect(VW/2-48,100,96,3);
+    for(let tk=0;tk<4;tk++){
+      ctx.fillStyle='#e8e2d6'; ctx.fillRect(VW/2-40+tk*22,103,9,10+((tk+(now/900|0))%2)*2);
+      ctx.fillStyle='#8b909e'; ctx.fillRect(VW/2-39+tk*22,105,7,1); ctx.fillRect(VW/2-39+tk*22,108,7,1);
+    }
+    ctx.fillStyle='#0a0b0f'; ctx.fillRect(VW/2-52,124,104,10);
+    ctx.fillStyle='#aeb9c2'; ctx.fillRect(VW/2-50,126,100,6);
+    for(let p=0;p<3;p++){
+      ctx.fillStyle='#e2e4ea'; ctx.fillRect(VW/2-42+p*26,121,16,3);
+      ctx.fillStyle='#f2c14e'; ctx.fillRect(VW/2-38+p*26,118,8,3);
+    }
+    ctx.fillStyle='#f2c14e'; ctx.fillRect(VW/2+38,119,7,5);          // service bell
+    ctx.fillStyle='#a8752a'; ctx.fillRect(VW/2+40,117,3,2);
+    const bs2=Math.floor(now/4200);
+    if(hash01(bs2*19)<0.5 && (now%4200)<420){                        // DING!
+      ctx.fillStyle='#fff7d8';
+      ctx.fillRect(VW/2+35,112,2,2); ctx.fillRect(VW/2+46,113,2,2); ctx.fillRect(VW/2+41,109,2,2);
+    }
     const cy=GROUND-30;
-    drawMini(ctx,90,cy,eatPose(now,1),COOKS[0],1);                   // stirring cooks
-    drawMini(ctx,VW-90,cy,eatPose(now,3),COOKS[1],-1);
+    // cooks: stirring away, and now and then one throws the arms up for the fight
+    const c1=hash01(Math.floor(now/6000)*3)<0.25?cheerPose(now,1):eatPose(now,1);
+    const c2=hash01(Math.floor(now/6000)*5+9)<0.25?cheerPose(now,3):eatPose(now,3);
+    drawMini(ctx,90,cy,c1,COOKS[0],1);
+    drawMini(ctx,VW-90,cy,c2,COOKS[1],-1);
     ctx.fillStyle='#0a0b0f'; ctx.fillRect(30,cy-26,140,28); ctx.fillRect(VW-170,cy-26,140,28);
     ctx.fillStyle='#aeb9c2'; ctx.fillRect(32,cy-24,136,8); ctx.fillRect(VW-168,cy-24,136,8);
     ctx.fillStyle='#6d7a85'; ctx.fillRect(32,cy-16,136,16); ctx.fillRect(VW-168,cy-16,136,16);
@@ -646,6 +750,19 @@ const STAGES={
         const t=((now/1400)+k*0.33+px2*0.01)%1;
         ctx.fillStyle='rgba(255,255,255,'+(0.35*(1-t)).toFixed(2)+')';
         ctx.fillRect(px2-6+Math.sin(t*6+k*2+px2)*5, cy-38-t*26, 3,3);
+      }
+      const fs2=Math.floor(now/1900)+px2;                            // flambé flare-ups
+      if(hash01(fs2*7)<0.3){
+        const ft=(now%1900)/1900;
+        if(ft<0.4){
+          const fl=Math.sin(ft/0.4*Math.PI);
+          ctx.fillStyle='#f2795e';
+          ctx.fillRect(px2-9,cy-38-fl*4,4,3+fl*3); ctx.fillRect(px2+5,cy-37-fl*3,4,3+fl*2);
+          ctx.fillStyle='#f2c14e';
+          ctx.fillRect(px2-7,cy-40-fl*4,3,3); ctx.fillRect(px2+6,cy-39-fl*3,3,2);
+          ctx.fillStyle='rgba(242,150,78,'+(0.12*fl).toFixed(3)+')';
+          ctx.fillRect(px2-20,cy-52,40,26);                          // orange glow on the wall
+        }
       }
     }
     ctx.fillStyle='#3c454d'; ctx.fillRect(0,GROUND-2,VW,2);
