@@ -18,7 +18,7 @@ Mobile-first 8-bit 1v1 fighting game for friends. One self-contained `index.html
 
 | Section | What it is |
 |---|---|
-| `CHARACTERS` / `ROSTER` | fighters = palette + feature flags (no sprite assets); `loadRosterManifest()` merges `characters/manifest.json` |
+| `CHARACTERS` / `ROSTER` | fighters = palette + feature flags (no sprite assets) + `group:'kitchen'|'waiters'` team label; `loadRosterManifest()` merges `characters/manifest.json` |
 | `drawCharacter()` + helpers | procedural pixel renderer (58x66 grid, hip at x=27, feet y=60); feature branches: toque/cap, beard/goatee, apron/halfApron, bun, bald, shortSleeves |
 | poses + `keyframes()` | 11 joint angles per pose; attack timelines in `ATTACK_POSES` |
 | `STAGES` | restaurant / mainhall / kitchen, drawn per-frame with mini NPCs (`drawMini`, `makeChar`); heavy static art pre-rendered to cached canvas |
@@ -47,7 +47,8 @@ Mobile-first 8-bit 1v1 fighting game for friends. One self-contained `index.html
 
 ## Milestones (see PLAN.md)
 
-Done: M1 core fight + online 1v1, stages, roster (Trifonas, Stavros, Christi,
-Eirini, Ntinos), music, directional/aerial move variants.
+Done: M1 core fight + online 1v1, stages, roster (kitchen: Trifonas, Stavros,
+Christi, Eirini, Ntinos; waiters: Kirsten), music, directional/aerial move
+variants, scrollable grouped character select.
 Next: per-character passives & combos (keep as data on character entries),
 best-of-3 rounds, more friends, more stages.

@@ -76,6 +76,10 @@
   }
   .cardgrid.stages { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
   .cardgrid .charcard { padding:8px; gap:6px; }
+  .grouphead {
+    grid-column:1/-1; text-align:left; color:#f2c14e; font-size:9px;
+    letter-spacing:2px; padding:10px 2px 2px; border-bottom:2px solid #2a5566;
+  }
   .cardgrid .charcard canvas { width:100%; max-width:132px; height:auto; }
 
   /* ---- touch controls ---- */
@@ -123,7 +127,7 @@
     <button class="ghost" id="m-music">&#9835; MUSIC: ON</button>
     <button class="ghost" id="m-sound">&#9834; SFX: ON</button>
   </div>
-  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK<br><br>NET V2 — BOTH PLAYERS NEED THE SAME VERSION</div>
+  <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK<br><br>NET V3 — BOTH PLAYERS NEED THE SAME VERSION</div>
 </div>
 
 <div class="screen" id="scr-online">
@@ -199,7 +203,7 @@ const AIR_MOVES = { apunch:true, akick:true };
 const CHARACTERS = {
   trifonas: {
     // was "Kitchen Staff": kitchen whites, bald under a red baseball cap
-    name:'TRIFONAS', glasses:false, headgear:'cap', bowtie:false, bald:true, beard:'#4a3423',
+    name:'TRIFONAS', group:'kitchen', glasses:false, headgear:'cap', bowtie:false, bald:true, beard:'#4a3423',
     pal:{ out:'#0a0b0f',
       skin:'#cf9a70', skinHi:'#e0ad84', skinLo:'#b57d55',
       torso:'#e6e9ee', torsoHi:'#f7f9fc', hoodIn:'#c3c9d4',
@@ -211,7 +215,7 @@ const CHARACTERS = {
   },
   stavros: {
     // hand-tuned from characters/stavros.png: black tee + the burgundy Ami apron
-    name:'STAVROS', glasses:true, headgear:'none', bowtie:false,
+    name:'STAVROS', group:'kitchen', glasses:true, headgear:'none', bowtie:false,
     bald:true, shortSleeves:true, beard:'#b3854e', apron:'#6e2437',
     sx:0.88, sy:1.08,
     pal:{ out:'#0a0b0f',
@@ -224,7 +228,7 @@ const CHARACTERS = {
   },
   christi: {
     // hand-tuned from characters/christi.png: white shirt + red half apron
-    name:'CHRISTI', glasses:true, headgear:'none', bowtie:false,
+    name:'CHRISTI', group:'kitchen', glasses:true, headgear:'none', bowtie:false,
     shortSleeves:true, bun:true, halfApron:'#8a3a35',
     sy:0.9,
     pal:{ out:'#0a0b0f',
@@ -237,7 +241,7 @@ const CHARACTERS = {
   },
   eirini: {
     // hand-tuned from characters/eirini.png: all-black hoodie fit, grey sneakers
-    name:'EIRINI', glasses:true, headgear:'none', bowtie:false,
+    name:'EIRINI', group:'kitchen', glasses:true, headgear:'none', bowtie:false,
     sx:1.12,
     pal:{ out:'#0a0b0f',
       skin:'#eec9a8', skinHi:'#f8dcbf', skinLo:'#d2a87f',
@@ -249,7 +253,7 @@ const CHARACTERS = {
   },
   ntinos: {
     // bald + goatee, skinny build, white shirt, red apron, black jeans
-    name:'NTINOS', glasses:false, headgear:'none', bowtie:false,
+    name:'NTINOS', group:'kitchen', glasses:false, headgear:'none', bowtie:false,
     bald:true, goatee:'#2a2119', apron:'#a8302e',
     sx:0.85, sy:1.02,
     pal:{ out:'#0a0b0f',
@@ -259,6 +263,19 @@ const CHARACTERS = {
       pant:'#17171d', pantHi:'#23232b',
       shoe:'#1a1a20', sole:'#8b909e', shoeAcc:'#3a3d45',
       hair:'#c69468', hairHi:'#d5a377', glass:'#0b0b10', lens:'#bfe0ec' } // hair = skin tones: bald
+  },
+  kirsten: {
+    // first of the waiters: long straight hair, skinny and the shortest on the roster
+    name:'KIRSTEN', group:'waiters', glasses:false, headgear:'none', bowtie:false,
+    longHair:true, shortSleeves:true, halfApron:'#1d1f27',
+    sx:0.78, sy:0.8,
+    pal:{ out:'#0a0b0f',
+      skin:'#eec29c', skinHi:'#f8d5b4', skinLo:'#d2a276',
+      torso:'#e9e7e0', torsoHi:'#f7f5ef', hoodIn:'#cfccc2',
+      arm:'#e9e7e0', armHi:'#f4f2ec', armLo:'#d5d2c8',
+      pant:'#17171d', pantHi:'#23232b',
+      shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
+      hair:'#a9793e', hairHi:'#c2914e', glass:'#0b0b10', lens:'#cfe0ec' }
   },
 };
 
@@ -378,6 +395,12 @@ function drawCharacter(p, ch){
     rect(headX-4, headY-2, 8, 1, c.hairHi);
   }
   if(ch.bun){ rect(headX-8, headY, 3, 5, c.out); rect(headX-7, headY+1, 2, 3, c.hair); }
+  if(ch.longHair){ // long straight hair falling down the back to the shoulder blades
+    rect(headX-8, headY-3, 4, 18, c.out);
+    rect(headX-7, headY-2, 2, 16, c.hair);
+    rect(headX-7, headY-2, 1, 12, c.hairHi);
+    rect(headX-7, headY+12, 2, 2, shade(c.hair,0.72));
+  }
   if(ch.headgear==='toque'){
     rect(headX-5, headY-11, 11, 9, c.out);
     rect(headX-4, headY-10, 9, 8, c.hat);
@@ -856,7 +879,7 @@ function setupTouch(){
 
 // ------------------------------------------------ networking (PeerJS, free cloud broker)
 const NET_PREFIX='ami-showdown-wvks-';
-const PROTO=2; // bump when net messages change; mismatched builds refuse to fight
+const PROTO=3; // bump when net messages change; mismatched builds refuse to fight
 class Net {
   constructor(){ this.peer=null; this.conn=null; this.isHost=false;
     this.onOpen=null; this.onMsg=null; this.onClose=null; this.onError=null; }
@@ -1084,7 +1107,18 @@ function openSelect(){
   Game.picks = Game.mode==='local' ? {} : Game.picks;
   Game.pickTurn=1;
   $('s-who').textContent = Game.mode==='local' ? 'PLAYER 1 — PICK' : 'PICK YOUR FIGHTER';
-  for(const key of Object.keys(ROSTER)){
+  // roster is split into two team sections; anyone may pick from either group,
+  // the headers just make a waiters-vs-kitchen match easy to set up
+  const keysByGroup = g => Object.keys(ROSTER).filter(k => (ROSTER[k].group||'kitchen')===g);
+  for(const grp of [ {id:'waiters', label:'WAITERS'}, {id:'kitchen', label:'KITCHEN STAFF'} ]){
+    const keys = keysByGroup(grp.id);
+    if(!keys.length) continue;
+    const head=document.createElement('div'); head.className='grouphead';
+    head.textContent=grp.label;
+    $('s-cards').append(head);
+    for(const key of keys) addCard(key);
+  }
+  function addCard(key){
     const ch=ROSTER[key];
     const card=document.createElement('div'); card.className='charcard';
     const cv=document.createElement('canvas'); cv.width=58*2; cv.height=66*2;

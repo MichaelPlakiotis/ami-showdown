@@ -19,9 +19,11 @@ same schema), but named friends should be hand-tuned built-ins.
 ```js
 key: {
   name:'DISPLAY NAME',            // uppercase, shown in HUD and select screen
+  group:'kitchen'|'waiters',      // team label; select screen groups fighters by it
   glasses:true|false, headgear:'none'|'toque'|'cap', bowtie:true|false,
   bald:true,                      // buzzed sides / receding; combine with hair=skin tones for fully bald
   bun:true,                       // hair bun at the back of the head
+  longHair:true,                  // straight hair falling down the back (uses pal.hair)
   beard:'#hex',                   // full jaw beard
   goatee:'#hex',                  // mustache + chin patch (use beard OR goatee)
   apron:'#hex',                   // full apron: bib + neck straps + thigh skirt + Ami emblem
@@ -37,7 +39,8 @@ key: {
 Conventions: `out` is always `'#0a0b0f'`. Derive Hi ≈ ×1.15–1.3 lighter, Lo ≈ ×0.7–0.8
 darker of the base (there is a `shade(hex,f)` helper in the file — mirror its output).
 For bald-with-no-stubble, set `hair`/`hairHi` to skin tones. Existing entries
-(trifonas, stavros, christi, eirini, ntinos) are the reference style — match them.
+(trifonas, stavros, christi, eirini, ntinos, kirsten) are the reference style — match them.
+Body-build extremes are allowed when the character calls for it (kirsten is sx:0.78, sy:0.8).
 
 ## Reference photos
 
