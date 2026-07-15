@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Ami Showdown — Waiters Vs Kitchen Staff</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,6 +131,7 @@
   <div class="row">
     <button class="ghost" id="m-music">&#9835; MUSIC: ON</button>
     <button class="ghost" id="m-sound">&#9834; SFX: ON</button>
+    <button class="ghost" id="m-fs">&#x26F6; FULLSCREEN</button>
   </div>
   <div class="hint">KEYBOARD P1: WASD + F PUNCH / G KICK / S BLOCK<br>P2: ARROWS + ENTER / SLASH / DOWN<br><br>BACK+PUNCH: BACKFIST &#183; BACK+KICK: TWIST KICK<br>AIR+PUNCH: SUPERMAN &#183; AIR+KICK: DROPKICK<br><br>NET V4 — BOTH PLAYERS NEED THE SAME VERSION</div>
 </div>
@@ -831,10 +834,19 @@ const Music = {
   init(){
     this.el=new Audio('music/theme.mp3');
     this.el.loop=true; this.el.volume=0.45; this.el.preload='auto';
-    // browsers block autoplay until the first user gesture
-    const unlock=()=>{ this.unlocked=true; this.start();
-      removeEventListener('pointerdown',unlock); removeEventListener('keydown',unlock); };
-    addEventListener('pointerdown',unlock); addEventListener('keydown',unlock);
+    this.el.setAttribute('playsinline','');
+    // browsers block autoplay until a user gesture. iOS only counts some
+    // gesture types as activation and can reject the first play() — so listen
+    // to several events and keep retrying every tap until playback truly starts
+    const evs=['pointerup','touchend','mousedown','keydown'];
+    const cleanup=()=>evs.forEach(e=>removeEventListener(e,unlock));
+    const unlock=()=>{
+      this.unlocked=true;
+      if(!this.on){ cleanup(); return; }
+      const p=this.el.play();
+      if(p&&p.then) p.then(cleanup).catch(()=>{}); else cleanup();
+    };
+    evs.forEach(e=>addEventListener(e,unlock));
   },
   start(){ if(this.on&&this.unlocked&&this.el.paused) this.el.play().catch(()=>{}); },
   toggle(){ this.on=!this.on; if(this.on) this.start(); else this.el.pause(); return this.on; }
@@ -1361,8 +1373,33 @@ function drawQR(cv, text){ // pixel-render the join link as a QR code
     if(qr.isDark(r,col)) c2.fillRect((col+q)*px,(r+q)*px,px,px);
 }
 
+// fullscreen so the browser chrome stays out of the fight (Android / desktop;
+// iPhone Safari has no page-fullscreen API — there, Add to Home Screen is the way)
+const FS={
+  can(){ const d=document.documentElement; return !!(d.requestFullscreen||d.webkitRequestFullscreen); },
+  active(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); },
+  enter(){
+    try{
+      const d=document.documentElement;
+      const p=d.requestFullscreen ? d.requestFullscreen({navigationUI:'hide'}) : d.webkitRequestFullscreen();
+      if(p&&p.catch) p.catch(()=>{});
+      if(screen.orientation&&screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+    }catch(e){}
+  },
+  exit(){ try{ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }catch(e){} }
+};
+
 function wireUI(){
   $('m-local').onclick=()=>{ Sound.sfx('ui'); Game.mode='local'; openSelect(); };
+  $('m-fs').onclick=()=>{
+    Sound.sfx('ui');
+    if(!FS.can()){ alert('ON IPHONE: SHARE BUTTON → "ADD TO HOME SCREEN".\nLAUNCHING FROM THAT ICON RUNS FULLSCREEN.'); return; }
+    if(FS.active()) FS.exit(); else FS.enter();
+  };
+  // phones: the first touch of a fight snaps into fullscreen automatically
+  addEventListener('pointerdown', ()=>{
+    if(Game.phase==='fight' && matchMedia('(pointer:coarse)').matches && FS.can() && !FS.active()) FS.enter();
+  }, {passive:true});
   $('m-online').onclick=()=>{ Sound.sfx('ui'); show('scr-online');
     $('o-status').innerHTML='HOST SHARES A 4-LETTER CODE. FRIEND TYPES IT AND JOINS.<br>FREE P2P — NO SERVER, NO ACCOUNT.'; };
   $('m-sound').onclick=()=>{ Sound.on=!Sound.on; Sound.sfx('ui');
