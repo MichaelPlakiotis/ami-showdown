@@ -275,7 +275,7 @@ const CHARACTERS = {
       arm:'#e9e7e0', armHi:'#f4f2ec', armLo:'#d5d2c8',
       pant:'#17171d', pantHi:'#23232b',
       shoe:'#15151b', sole:'#3a3a44', shoeAcc:'#26262e',
-      hair:'#a9793e', hairHi:'#c2914e', glass:'#0b0b10', lens:'#cfe0ec' }
+      hair:'#1c1410', hairHi:'#302219', glass:'#0b0b10', lens:'#cfe0ec' }
   },
 };
 
@@ -395,11 +395,14 @@ function drawCharacter(p, ch){
     rect(headX-4, headY-2, 8, 1, c.hairHi);
   }
   if(ch.bun){ rect(headX-8, headY, 3, 5, c.out); rect(headX-7, headY+1, 2, 3, c.hair); }
-  if(ch.longHair){ // long straight hair falling down the back to the shoulder blades
-    rect(headX-8, headY-3, 4, 18, c.out);
-    rect(headX-7, headY-2, 2, 16, c.hair);
-    rect(headX-7, headY-2, 1, 12, c.hairHi);
-    rect(headX-7, headY+12, 2, 2, shade(c.hair,0.72));
+  if(ch.longHair){ // loose hair falling down the back, widening toward the ends
+    rect(headX-8, headY-3, 4, 12, c.out);
+    rect(headX-10, headY+7, 6, 9, c.out);
+    rect(headX-7, headY-2, 2, 10, c.hair);
+    rect(headX-9, headY+8, 4, 7, c.hair);
+    rect(headX-7, headY-2, 1, 8, c.hairHi);
+    rect(headX-6, headY+9, 1, 4, c.hairHi);
+    rect(headX-9, headY+13, 4, 2, shade(c.hair,0.72));
   }
   if(ch.headgear==='toque'){
     rect(headX-5, headY-11, 11, 9, c.out);
