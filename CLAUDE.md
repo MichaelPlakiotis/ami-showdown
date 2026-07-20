@@ -26,7 +26,7 @@ Mobile-first 8-bit 1v1 fighting game for friends. One self-contained `index.html
 | `Fighter` | deterministic state machine: idle/walk/jump/block/punch/kick/bpunch/bkick/apunch/akick/hitstun/ko |
 | `MOVES` | damage/range/vert/startup/active/recovery/knockback (ms, world px) |
 | `Input` / `setupTouch` | keyboard + floating left joystick + right action buttons |
-| `Net` + `Game.netMsg` | PeerJS room codes; snapshots ~30/s tagged with round number; hits attacker-authoritative; `PROTO` version handshake on connect; `ICE` config adds free Open Relay TURN servers (STUN-only stalls on mobile-data/CGNAT — do not remove) |
+| `Net` + `Game.netMsg` | PeerJS room codes; snapshots ~30/s tagged with round number; hits attacker-authoritative; `PROTO` version handshake on connect; `ICE` config adds TWO independent free TURN providers, Open Relay + freestun.net (STUN-only stalls on mobile-data/CGNAT; a single free TURN provider is unreliable alone since it's a shared public relay with no SLA — do not drop back to one) |
 | `Game` | orchestration, screens (menu/online/wait/select/stage/result), HUD drawn on canvas |
 
 ## Workflows

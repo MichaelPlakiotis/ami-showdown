@@ -1035,13 +1035,20 @@ const NET_PREFIX='ami-showdown-wvks-';
 const PROTO=4; // bump when net messages change; mismatched builds refuse to fight
 // STUN finds a direct phone-to-phone path; the free TURN relays below carry
 // the match when a direct path is impossible (mobile data / carrier-grade NAT
-// / strict routers — the "stuck on CONNECTING" cases).
+// / strict routers — the "stuck on CONNECTING" cases). TWO independent free
+// TURN providers are listed on purpose: each is a shared public relay with no
+// SLA and can be overloaded/rate-limited at any given moment, so ICE gathers
+// candidates from both and uses whichever answers — if one is down/slow the
+// other still gets the match through. Do not reduce to a single provider.
 const ICE={ config:{ iceServers:[
   { urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302'] },
   { urls:['turn:openrelay.metered.ca:80',
           'turn:openrelay.metered.ca:443',
           'turn:openrelay.metered.ca:443?transport=tcp'],
-    username:'openrelayproject', credential:'openrelayproject' }
+    username:'openrelayproject', credential:'openrelayproject' },
+  { urls:['stun:freestun.net:3478',
+          'turn:freestun.net:3478'],
+    username:'free', credential:'free' }
 ]}};
 class Net {
   constructor(){ this.peer=null; this.conn=null; this.isHost=false; this.live=false;
@@ -1059,7 +1066,7 @@ class Net {
       this._bind(this.peer.connect(NET_PREFIX+code, {reliable:true}));
       // room exists but the P2P handshake never completes -> say so instead
       // of spinning forever
-      this._t=setTimeout(()=>{ if(!this.live) this.onError&&this.onError({type:'timeout'}); }, 15000);
+      this._t=setTimeout(()=>{ if(!this.live) this.onError&&this.onError({type:'timeout'}); }, 20000);
     });
     this.peer.on('error', e=>this.onError&&this.onError(e));
   }
